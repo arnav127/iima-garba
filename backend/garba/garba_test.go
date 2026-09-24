@@ -178,6 +178,12 @@ func TestRotatingQRScan(t *testing.T) {
 	if r.Outcome != "check" || r.PassID == "" || r.Tone != "guest" {
 		t.Fatalf("manual: %+v", r)
 	}
+	// A typo (one character changed) is caught by the check character, before any lookup.
+	typo := []byte(code)
+	typo[0] = codeAlphabet[(codeIndex(typo[0])+1)%len(codeAlphabet)]
+	if r2, _ := s.Scan(vol, string(typo), 2); r2.Outcome != "invalid" || !strings.Contains(r2.Title, "check out") {
+		t.Fatalf("typo: %+v", r2)
+	}
 	if r, _ = s.Admit(vol, r.PassID, 2); r.Outcome != "allowed" {
 		t.Fatalf("admit: %+v", r)
 	}
@@ -257,11 +263,72 @@ func TestExchangeImport(t *testing.T) {
 	}
 	ishaan := signIn(t, s, "ishaan.m@spjimr.org", "Ishaan")
 	m := me(t, s, ishaan)
-	if m.User.Group != "exchange" || m.Pass == nil || m.Pass.Tone != "exchange" || !strings.HasPrefix(m.Pass.Code, "GRB-X-") || *m.Pass.College != "SPJIMR" {
+	if m.User.Group != "exchange" || m.Pass == nil || m.Pass.Tone != "exchange" || !validCode(m.Pass.Code) || *m.Pass.College != "SPJIMR" {
 		t.Fatalf("exchange me: %+v", m.Pass)
 	}
 	links, err := s.ExchangeLinks("https://garba.test")
 	if err != nil || !strings.Contains(string(links), "https://garba.test/p/") || !strings.Contains(string(links), "Tara Singh") {
 		t.Fatalf("links: %s %v", links, err)
 	}
+}
+
+func validCode(c string) bool {
+	n, ok := normalizePassCode(c)
+	return ok && n == c && len(c) == 8 && c[4] == '-'
+}
+
+func TestPassCodes(t *testing.T) {
+	seen := map[string]bool{}
+	for i := 0; i < 2000; i++ {
+		c := newPassCode()
+		if !validCode(c) || seen[c] {
+			t.Fatalf("bad or duplicate code %q", c)
+		}
+		seen[c] = true
+		raw := strings.ReplaceAll(c, "-", "")
+
+		// Messy typing is fine.
+		if n, ok := normalizePassCode(" " + strings.ToLower(raw[:3]) + " " + raw[3:] + " "); !ok || n != c {
+			t.Fatalf("normalize %q: %q %v", c, n, ok)
+		}
+		// Every single-character substitution is caught.
+		for pos := 0; pos < len(raw); pos++ {
+			for _, alt := range []byte(codeAlphabet) {
+				if alt == raw[pos] {
+					continue
+				}
+				b := []byte(raw)
+				b[pos] = alt
+				if _, ok := normalizePassCode(string(b)); ok {
+					t.Fatalf("substitution %q -> %q not caught", raw, b)
+				}
+			}
+		}
+	}
+	// Look-alike characters are never valid.
+	for _, bad := range []string{"0000-000", "OOOO-OOO", "1ILU-234", "GRB-0417", "ABC", ""} {
+		if _, ok := normalizePassCode(bad); ok {
+			t.Fatalf("%q accepted", bad)
+		}
+	}
+	// Adjacent swaps are caught most of the time (Luhn mod N misses only a few pairs).
+	caught, total := 0, 0
+	for c := range seen {
+		raw := []byte(strings.ReplaceAll(c, "-", ""))
+		for i := 0; i+1 < len(raw); i++ {
+			if raw[i] == raw[i+1] {
+				continue
+			}
+			b := append([]byte(nil), raw...)
+			b[i], b[i+1] = b[i+1], b[i]
+			total++
+			if _, ok := normalizePassCode(string(b)); !ok {
+				caught++
+			}
+		}
+	}
+	if float64(caught)/float64(total) < 0.9 {
+		t.Fatalf("only %d/%d swaps caught", caught, total)
+	}
+	t.Logf("adjacent swaps caught: %d/%d", caught, total)
 }

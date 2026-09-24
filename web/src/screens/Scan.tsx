@@ -2,6 +2,7 @@ import { useEffect, useRef, useState } from 'preact/hooks';
 import { TONES, type MeResponse, type ScanResult } from '../../../shared/types.ts';
 import { Btn, Logo } from '../components/ui.tsx';
 import { api, storage } from '../lib.ts';
+import { checkTyped, formatTyped } from '../passcode.ts';
 import { AccountSheet } from './Home.tsx';
 
 const LOOK: Record<ScanResult['outcome'] | 'idle', { bg: string; icon: string }> = {
@@ -96,6 +97,7 @@ export function Scan({ me }: { me: MeResponse }) {
     storage.set('garba:gate', g);
   };
 
+  const typed = checkTyped(code);
   const look = LOOK[result?.outcome ?? 'idle'];
   const tone = result?.tone ? TONES[result.tone] : null;
   const camMsg = { starting: 'Starting camera…', on: '', blocked: 'Camera blocked. Allow camera access for this site, or type the pass code.', none: 'No camera found. Type the pass code instead.' }[cam];
@@ -137,9 +139,14 @@ export function Scan({ me }: { me: MeResponse }) {
             </div>
           )}
           {manual && result?.outcome !== 'check' && (
-            <form style={{ marginTop: 14, display: 'flex', gap: 8 }} onSubmit={(e) => { e.preventDefault(); last.current.key = ''; check(code.trim()); }}>
-              <input class="input" value={code} onInput={(e) => setCode(e.currentTarget.value.toUpperCase())} placeholder="GRB-0417" autoCapitalize="characters" spellcheck={false} style={{ flex: 1 }} autoFocus />
-              <button class="btn small" style={{ width: 'auto' }} disabled={busy || code.trim().length < 5}>Check</button>
+            <form style={{ marginTop: 14 }} onSubmit={(e) => { e.preventDefault(); if (typed.valid) { last.current.key = ''; check(code); } }}>
+              <div style={{ display: 'flex', gap: 8 }}>
+                <input class="input" value={code} onInput={(e) => setCode(formatTyped(e.currentTarget.value))} placeholder="KP7X-4MQ" autoCapitalize="characters" autoComplete="off" spellcheck={false}
+                  style={{ flex: 1, font: '700 20px ui-monospace, Menlo, monospace', letterSpacing: '.12em', borderColor: typed.badChar || (typed.complete && !typed.valid) ? 'var(--bad)' : undefined }} autoFocus />
+                <button class="btn small" style={{ width: 'auto' }} disabled={busy || !typed.valid}>Check</button>
+              </div>
+              {typed.badChar && <div class="error" style={{ marginTop: 6 }}>Codes never contain “{typed.badChar}”. It's probably {({ O: 'Q or D', '0': 'Q or D', I: 'J or 7', '1': 'J or 7', L: 'J or 7', U: 'V' } as Record<string, string>)[typed.badChar] ?? 'something else'}.</div>}
+              {!typed.badChar && typed.complete && !typed.valid && <div class="error" style={{ marginTop: 6 }}>That code doesn't check out. Read it again carefully.</div>}
             </form>
           )}
           <div style={{ marginTop: 14, display: 'flex', flexDirection: 'column', gap: 12 }}>

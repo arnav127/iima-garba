@@ -45,7 +45,7 @@ export interface Settings {
 
 export interface PassView {
   id: string;
-  code: string;            // GRB-0417 / GRB-X-0932
+  code: string;            // KP7X-4MQ: random + check character, typed at the gate if a QR won't scan
   kind: PassKind;
   status: PassStatus;
   holderName: string;

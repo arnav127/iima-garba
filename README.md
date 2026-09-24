@@ -23,6 +23,9 @@ Pass distribution and gate entry for Cultcomm's Garba Night. Mobile first, in th
   | Teal | Exchange | College ID |
 
 - **Volunteers** scan with their phone camera. If a QR won't scan (for example, a cracked screen), they can type the pass code; that requires an ID check before they tap **Admit**.
+- **Pass codes** look like `KP7X-4MQ`: 6 random characters plus a check character, from an alphabet without look-alikes (no 0/O/1/I/L/U).
+  - They're random, so nobody can work out other people's codes. About 730 million are possible, so a made-up code hits a real pass roughly 1 in 150,000 times.
+  - The check character catches every single-character typo and 99.8% of swapped neighbours. The scanner flags a typo while it's being typed, before anything is looked up.
 - **Cultcomm admins** get a dashboard with five tabs:
   - **Live:** entries by gate and by pass type, and the latest arrivals.
   - **Passes:** search every pass, cancel one, or undo an entry scanned by mistake.

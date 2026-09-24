@@ -105,7 +105,6 @@ type ScanResult struct {
 func apiErr(status int, msg string) *router.ApiError { return router.NewApiError(status, msg, nil) }
 
 var (
-	codeRe    = regexp.MustCompile(`(?i)^GRB-(X-)?\d{1,6}$`)
 	spaceRe   = regexp.MustCompile(`\s+`)
 	studentRe = regexp.MustCompile(`^[a-z]{1,6}\d{2}`)
 	ist       = time.FixedZone("IST", 5*3600+1800)
@@ -228,7 +227,7 @@ func (s *Service) viewOne(app core.App, p *core.Record, withKey bool) PassView {
 	return s.views(app, []*core.Record{p}, withKey)[0]
 }
 
-// newPass allocates the next sequence number and saves a pass. Run inside a transaction.
+// newPass saves a pass with a fresh random code (seq only keeps creation order). Run inside a transaction.
 func newPass(app core.App, kind, holderID, name, email, issuerID string, extra map[string]any) (*core.Record, error) {
 	col, err := app.FindCachedCollectionByNameOrId("passes")
 	if err != nil {
@@ -240,13 +239,16 @@ func newPass(app core.App, kind, holderID, name, email, issuerID string, extra m
 	if err := app.DB().NewQuery("SELECT COALESCE(MAX(seq), 0) + 1 AS n FROM passes").One(&next); err != nil {
 		return nil, err
 	}
-	prefix := "GRB-"
-	if kind == "exchange" {
-		prefix = "GRB-X-"
+	code := newPassCode()
+	for i := 0; i < 5; i++ { // collisions are ~1 in 150,000; retry just in case
+		if _, err := app.FindFirstRecordByData("passes", "code", code); err != nil {
+			break
+		}
+		code = newPassCode()
 	}
 	p := core.NewRecord(col)
 	p.Set("seq", next.N)
-	p.Set("code", fmt.Sprintf("%s%04d", prefix, next.N))
+	p.Set("code", code)
 	p.Set("secret", security.RandomString(32))
 	p.Set("linkToken", security.RandomString(24))
 	p.Set("kind", kind)
@@ -563,8 +565,12 @@ func (s *Service) result(outcome, title, sub string, v *PassView) *ScanResult {
 func (s *Service) Scan(volunteer *core.Record, payloadRaw string, gate int) (*ScanResult, error) {
 	payload := strings.TrimSpace(payloadRaw)
 
-	if codeRe.MatchString(payload) {
-		p, err := s.app.FindFirstRecordByData("passes", "code", strings.ToUpper(payload))
+	if looksLikePassCode(payload) {
+		code, ok := normalizePassCode(payload)
+		if !ok {
+			return s.result("invalid", "Code doesn't check out", "Probably a typo. Read it again, or it isn't a real pass", nil), nil
+		}
+		p, err := s.app.FindFirstRecordByData("passes", "code", code)
 		if err != nil {
 			return s.result("invalid", "Not a valid pass", "No pass has this code", nil), nil
 		}
