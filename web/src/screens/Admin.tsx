@@ -3,7 +3,7 @@ import {
   GROUP_LABEL, MEMBER_GROUPS, TONES, toneOfKind,
   type AdminPerson, type AdminStats, type Group, type ImportResult, type MeResponse, type PassView, type Role, type Settings,
 } from '../../../shared/types.ts';
-import { Btn, Logo, Mirrors, Rainbow, Sheet, Spinner, Top } from '../components/ui.tsx';
+import { Btn, ConfirmBtn, Logo, Mirrors, Rainbow, Sheet, Spinner, Top } from '../components/ui.tsx';
 import { api, initials, istTime, navigate, onPassesChange, pb, pbCall, storage, toast, toastError } from '../lib.ts';
 import { AccountSheet } from './Home.tsx';
 
@@ -15,7 +15,7 @@ export function Admin({ me }: { me: MeResponse }) {
   const [account, setAccount] = useState(false);
   const pick = (t: Tab) => { setTab(t); storage.set('garba:admintab', t); };
   return (
-    <div class="screen">
+    <div class="screen dash">
       <Top />
       <div style={{ padding: '12px 22px 0', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
         <div style={{ display: 'flex', flexDirection: 'column' }}>
@@ -24,12 +24,12 @@ export function Admin({ me }: { me: MeResponse }) {
         </div>
         <button onClick={() => setAccount(true)} aria-label="Account"><Logo size={40} /></button>
       </div>
-      <div style={{ margin: '16px 20px 0' }}>
+      <div class="dash-tabs" style={{ margin: '16px 20px 0' }}>
         <div class="pills" role="tablist" style={{ gap: 2 }}>
           {TABS.map(([id, label]) => <button key={id} role="tab" aria-selected={tab === id} class={`pill ${tab === id ? 'on' : ''}`} style={{ flex: '1 0 auto', padding: '7px 8px' }} onClick={() => pick(id)}>{label}</button>)}
         </div>
       </div>
-      {tab === 'live' && <Live />}
+      {tab === 'live' && <Live me={me} />}
       {tab === 'passes' && <Passes />}
       {tab === 'people' && <People meId={me.user.id} />}
       {tab === 'exchange' && <Exchange />}
@@ -64,7 +64,7 @@ function useDebounced<T>(value: T, ms: number): T {
 
 // ---------- Live ----------
 
-function Live() {
+function Live({ me }: { me: MeResponse }) {
   const [s, setS] = useState<AdminStats | null>(null);
   useEffect(() => {
     let t: ReturnType<typeof setTimeout> | undefined;
@@ -83,7 +83,8 @@ function Live() {
   const maxGate = Math.max(1, ...s.byGate.map((g) => g.count));
 
   return (
-    <>
+    <div class="dash-cols">
+      <div class="dash-col">
       <div class="card-ink" style={{ margin: '16px 20px 0' }}>
         <Rainbow h={10} />
         <div style={{ padding: '16px 18px', display: 'flex', flexDirection: 'column', gap: 4 }}>
@@ -106,7 +107,15 @@ function Live() {
         ))}
       </div>
 
-      <div class="label" style={{ padding: '22px 22px 8px' }}>BY GATE</div>
+      <div style={{ margin: '22px 20px 0', display: 'flex', flexDirection: 'column', gap: 12 }}>
+        <Btn onClick={() => navigate('/scan')}>Open gate scanner</Btn>
+        {me.pass && <Btn variant="ghost" icon="▣" onClick={() => navigate('/pass')}>Show my pass QR</Btn>}
+        <Btn variant="ghost" icon="↓" onClick={() => download('/api/garba/admin/export.csv', `garba-passes-${new Date().toISOString().slice(0, 10)}.csv`)}>Download all passes (CSV)</Btn>
+      </div>
+      </div>
+
+      <div class="dash-col">
+      <div class="label dash-first" style={{ padding: '22px 22px 8px' }}>BY GATE</div>
       <div style={{ margin: '0 20px', display: 'flex', flexDirection: 'column', gap: 8 }}>
         {s.byGate.length === 0 && <span class="hint">Nobody has entered yet.</span>}
         {s.byGate.map((g) => (
@@ -138,12 +147,8 @@ function Live() {
           </div>
         ))}
       </div>
-
-      <div style={{ margin: '22px 20px 0', display: 'flex', flexDirection: 'column', gap: 12 }}>
-        <Btn onClick={() => navigate('/scan')}>Open gate scanner</Btn>
-        <Btn variant="ghost" icon="↓" onClick={() => download('/api/garba/admin/export.csv', `garba-passes-${new Date().toISOString().slice(0, 10)}.csv`)}>Download all passes (CSV)</Btn>
       </div>
-    </>
+    </div>
   );
 }
 
@@ -195,7 +200,7 @@ function PassList({ filter: fixed }: { filter?: string }) {
           ))}
         </div>
       )}
-      <div style={{ margin: '14px 20px 0', borderTop: '2px solid var(--ink)' }}>
+      <div class="row-grid" style={{ margin: '14px 20px 0', borderTop: '2px solid var(--ink)' }}>
         {!list && <Spinner />}
         {list?.length === 0 && <div class="row hint">No passes match.</div>}
         {list?.map((p) => {
@@ -221,8 +226,8 @@ function PassList({ filter: fixed }: { filter?: string }) {
             <span class="note">{[sel.holderEmail, sel.college, sel.issuerName && `Guest of ${sel.issuerName}`].filter(Boolean).join(' · ') || 'No email · shown from host’s phone or link'}</span>
             {sel.enteredAt && <span class="note" style={{ color: 'var(--ok-text)', fontWeight: 600 }}>Scanned at {istTime(sel.enteredAt)} · Gate {sel.enteredGate}</span>}
           </div>
-          {sel.enteredAt && <Btn variant="ghost" disabled={busy} icon="↩" onClick={() => confirm('Undo this entry? The pass can be scanned again.') && act('undo-entry', 'Entry undone')}>Undo entry (scanned by mistake)</Btn>}
-          {!sel.enteredAt && sel.status !== 'REVOKED' && <Btn variant="danger" disabled={busy} icon="✕" onClick={() => confirm(`Cancel ${sel.holderName}'s pass? It will be refused at the gate.`) && act('revoke', 'Pass cancelled')}>Cancel pass</Btn>}
+          {sel.enteredAt && <ConfirmBtn variant="ghost" disabled={busy} icon="↩" confirmLabel="Tap again to undo · can be scanned again" onConfirm={() => act('undo-entry', 'Entry undone. The pass can be scanned again.')}>Undo entry (scanned by mistake)</ConfirmBtn>}
+          {!sel.enteredAt && sel.status !== 'REVOKED' && <ConfirmBtn variant="ghost" disabled={busy} icon="✕" confirmLabel="Tap again to cancel this pass" onConfirm={() => act('revoke', 'Pass cancelled')}>Cancel pass</ConfirmBtn>}
           {sel.status === 'REVOKED' && <Btn disabled={busy} icon="↺" onClick={() => act('restore', 'Pass restored')}>Restore pass</Btn>}
         </Sheet>
       )}
@@ -272,18 +277,21 @@ function People({ meId }: { meId: string }) {
   }
 
   return (
-    <>
+    <div class="dash-cols">
+      <div class="dash-col">
       <form class="box" style={{ margin: '16px 20px 0', padding: 16, display: 'flex', flexDirection: 'column', gap: 10 }} onSubmit={grant}>
         <span style={{ font: '800 22px/1 var(--fd)', fontStretch: '75%' }}>GATE & ADMIN ACCESS</span>
-        <span class="note" style={{ fontSize: 13 }}>Add volunteers before the night. IIMA emails work even if they haven't signed in yet.</span>
-        <input class="input" type="email" required placeholder="p24name@iima.ac.in" value={email} onInput={(e) => setEmail(e.currentTarget.value)} autoCapitalize="none" spellcheck={false} />
+        <span class="note" style={{ fontSize: 13 }}>Add volunteers before the night, even if they haven't signed in yet. Any Google account works, and each volunteer and admin gets a pass of their own.</span>
+        <input class="input" type="email" required placeholder="p24name@iima.ac.in or name@gmail.com" value={email} onInput={(e) => setEmail(e.currentTarget.value)} autoCapitalize="none" spellcheck={false} />
         <div class="pills">
           {(['volunteer', 'admin'] as Role[]).map((r) => <button type="button" key={r} class={`pill ${role === r ? 'on' : ''}`} style={{ flex: 1 }} onClick={() => setRole(r)}>{r === 'volunteer' ? 'Gate volunteer' : 'Cultcomm admin'}</button>)}
         </div>
         <Btn type="submit" disabled={busy || !email.includes('@')}>Give access</Btn>
       </form>
+      </div>
 
-      <div style={{ margin: '18px 20px 0' }}>
+      <div class="dash-col">
+      <div style={{ margin: '16px 20px 0' }}>
         <input class="input" type="search" placeholder="Search people by name or email" value={q} onInput={(e) => setQ(e.currentTarget.value)} />
       </div>
       <div style={{ margin: '14px 20px 0', borderTop: '2px solid var(--ink)' }}>
@@ -296,6 +304,7 @@ function People({ meId }: { meId: string }) {
             {p.role !== 'member' && <span class="status" style={{ color: p.role === 'admin' ? 'var(--pink)' : 'var(--blue)' }}>{p.role.toUpperCase()}</span>}
           </button>
         ))}
+      </div>
       </div>
 
       {sel && (
@@ -336,7 +345,7 @@ function People({ meId }: { meId: string }) {
           </div>
         </Sheet>
       )}
-    </>
+    </div>
   );
 }
 
@@ -362,7 +371,8 @@ function Exchange() {
   }
 
   return (
-    <>
+    <div class="dash-cols">
+      <div class="dash-col">
       <div class="box" style={{ margin: '16px 20px 0', padding: 16, display: 'flex', flexDirection: 'column', gap: 10 }}>
         <span style={{ font: '800 22px/1 var(--fd)', fontStretch: '75%' }}>UPLOAD EXCHANGE GUESTS</span>
         <span class="note" style={{ fontSize: 13 }}>
@@ -382,9 +392,12 @@ function Exchange() {
         )}
         <Btn variant="ghost" icon="↓" onClick={() => download('/api/garba/admin/exchange-links.csv', 'exchange-pass-links.csv')}>Download pass links (CSV)</Btn>
       </div>
-      <div class="label" style={{ padding: '22px 22px 0' }}>EXCHANGE PASSES</div>
+      </div>
+      <div class="dash-col">
+      <div class="label dash-first" style={{ padding: '22px 22px 0' }}>EXCHANGE PASSES</div>
       <PassList key={v} filter="exchange" />
-    </>
+      </div>
+    </div>
   );
 }
 
@@ -410,7 +423,8 @@ function SettingsTab() {
   const limits: [keyof Settings['limits'], string][] = [['pgp1', 'PGP1'], ['student', 'OTHER STUDENTS'], ['faculty', 'FACULTY & STAFF']];
 
   return (
-    <div style={{ margin: '16px 20px 0', display: 'flex', flexDirection: 'column', gap: 14 }}>
+    <div class="dash-cols">
+    <div class="dash-col" style={{ margin: '16px 20px 0', gap: 14 }}>
       <span style={{ font: '800 22px/1 var(--fd)', fontStretch: '75%' }}>GUESTS EACH PERSON CAN ADD</span>
       <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr 1fr', gap: 10 }}>
         {limits.map(([k, label]) => (
@@ -427,7 +441,9 @@ function SettingsTab() {
         <span class="hint">@iima.ac.in addresses starting with these are PGP1. Other addresses like p25name are students; addresses without a batch number are faculty & staff. People are re-sorted when they next sign in.</span>
       </div>
 
-      <span style={{ font: '800 22px/1 var(--fd)', fontStretch: '75%', marginTop: 10 }}>EVENT</span>
+    </div>
+    <div class="dash-col" style={{ margin: '16px 20px 0', gap: 14 }}>
+      <span class="dash-first" style={{ font: '800 22px/1 var(--fd)', fontStretch: '75%', marginTop: 10 }}>EVENT</span>
       {text.map(([k, label]) => (
         <div key={k} class="field">
           <label class="label" for={`ev-${k}`}>{label}</label>
@@ -439,6 +455,7 @@ function SettingsTab() {
         <input id="ev-gates" class="input" type="number" min={1} max={20} value={s.event.gates} onInput={(e) => ev('gates', Number(e.currentTarget.value))} />
       </div>
       <Btn disabled={busy} onClick={save}>{busy ? 'Saving…' : 'Save settings'}</Btn>
+    </div>
     </div>
   );
 }

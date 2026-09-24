@@ -1,7 +1,7 @@
 import { useEffect, useRef, useState } from 'preact/hooks';
 import { TONES, type MeResponse, type ScanResult } from '../../../shared/types.ts';
 import { Btn, Logo } from '../components/ui.tsx';
-import { api, storage } from '../lib.ts';
+import { api, navigate, storage } from '../lib.ts';
 import { checkTyped, formatTyped } from '../passcode.ts';
 import { AccountSheet } from './Home.tsx';
 
@@ -160,7 +160,7 @@ export function Scan({ me }: { me: MeResponse }) {
   const camMsg = { starting: 'Starting camera…', on: '', blocked: 'Camera blocked. Allow camera access for this site, or type the pass code.', none: 'No camera found. Type the pass code instead.' }[cam];
 
   return (
-    <div class="screen" style={{ background: 'repeating-linear-gradient(45deg,#1d1d1d 0 10px,#181818 10px 20px)', minHeight: '100dvh', overflow: 'hidden' }}>
+    <div class="screen" style={{ background: 'repeating-linear-gradient(45deg,#1d1d1d 0 10px,#181818 10px 20px)', overflow: 'hidden' }}>
       <video ref={videoRef} muted playsInline style={{ position: 'absolute', inset: 0, width: '100%', height: '100%', objectFit: 'cover', opacity: cam === 'on' ? 1 : 0 }} />
       {camMsg && <div style={{ position: 'absolute', top: 'calc(var(--safe-t) + 106px)', left: '50%', marginLeft: -100, width: 200, height: 240, display: 'grid', placeItems: 'center', textAlign: 'center', font: '500 11px/1.6 ui-monospace, monospace', color: 'rgba(246,240,228,.55)' }}>{camMsg}</div>}
 
@@ -171,6 +171,7 @@ export function Scan({ me }: { me: MeResponse }) {
         <div style={{ display: 'flex', gap: 8, alignItems: 'center' }}>
           {netBad && <div style={{ padding: '8px 10px', borderRadius: 10, background: 'var(--bad)', color: '#fff', font: "700 13px var(--fb)" }}>NETWORK</div>}
           <div style={{ padding: '8px 14px', borderRadius: 10, background: 'var(--ivory)', font: "700 13px var(--fb)" }}>{count ?? '…'} IN</div>
+          {me.pass && <button onClick={() => navigate('/pass')} style={{ padding: '8px 12px', borderRadius: 10, background: 'var(--pink)', color: '#fff', font: "700 13px var(--fb)" }}>MY QR</button>}
           <button onClick={() => setAccount(true)} aria-label="Menu"><Logo size={34} /></button>
         </div>
       </div>

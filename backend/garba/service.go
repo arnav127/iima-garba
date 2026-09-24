@@ -135,6 +135,9 @@ func group(u *core.Record) string { return u.GetString("group") }
 
 func isMemberGroup(g string) bool { return g == "pgp1" || g == "student" || g == "faculty" }
 
+// isStaff: gate volunteers and Cultcomm admins, who get their own pass even without an IIMA address.
+func isStaff(u *core.Record) bool { return role(u) == "volunteer" || role(u) == "admin" }
+
 func (s *Service) isMemberEmail(email string) bool {
 	for _, d := range s.MemberDomains {
 		if strings.HasSuffix(email, "@"+d) {
@@ -198,9 +201,13 @@ func (s *Service) view(p *core.Record, withKey bool) PassView {
 		if holder != nil {
 			g = group(holder)
 		}
-		v.TypeLabel, v.Tone = GroupLabel[g], "student"
-		if g == "faculty" {
-			v.Tone = "faculty"
+		switch {
+		case g == "faculty":
+			v.TypeLabel, v.Tone = GroupLabel[g], "faculty"
+		case isMemberGroup(g):
+			v.TypeLabel, v.Tone = GroupLabel[g], "student"
+		default: // a volunteer or admin without an IIMA address
+			v.TypeLabel, v.Tone = "Cultcomm team", "guest"
 		}
 	}
 	if issuer != nil {
@@ -280,9 +287,9 @@ func newUser(app core.App, email, name, grp, rl string) (*core.Record, error) {
 	return u, app.Save(u)
 }
 
-// ensureOwnPass gives an IIMA member their own pass (once), keeping its name in sync.
+// ensureOwnPass gives an IIMA member, volunteer or admin their own pass (once), keeping its name in sync.
 func ensureOwnPass(app core.App, u *core.Record) error {
-	if !isMemberGroup(group(u)) {
+	if !isMemberGroup(group(u)) && !isStaff(u) {
 		return nil
 	}
 	p, err := app.FindFirstRecordByFilter("passes", "holder = {:u} && kind = 'own'", dbx.Params{"u": u.Id})

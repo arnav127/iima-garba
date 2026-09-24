@@ -84,13 +84,11 @@ func (s *Service) ensureAdmins() error {
 		u, err := s.app.FindAuthRecordByEmail("users", email)
 		if err != nil {
 			if !s.isMemberEmail(email) {
-				// Non-IIMA admins get an account without a pass.
+				// Non-IIMA admins get an account (and, below, their own pass).
 				if u, err = newUser(s.app, email, strings.Split(email, "@")[0], "guest", "admin"); err != nil {
 					return err
 				}
-				continue
-			}
-			if u, err = s.SignInUser(email, ""); err != nil {
+			} else if u, err = s.SignInUser(email, ""); err != nil {
 				return err
 			}
 		}
@@ -99,6 +97,9 @@ func (s *Service) ensureAdmins() error {
 			if err := s.app.Save(u); err != nil {
 				return err
 			}
+		}
+		if err := ensureOwnPass(s.app, u); err != nil {
+			return err
 		}
 	}
 	return nil

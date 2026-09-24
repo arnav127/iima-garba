@@ -353,3 +353,59 @@ func TestPassCodes(t *testing.T) {
 	}
 	t.Logf("adjacent swaps caught: %d/%d", caught, total)
 }
+
+func TestUndoEntry(t *testing.T) {
+	s, _ := setup(t)
+	admin := signIn(t, s, "admin.x@iima.ac.in", "Admin")
+	admin.Set("role", "admin")
+	s.app.Save(admin)
+	u := signIn(t, s, "p25aarav@iima.ac.in", "Aarav")
+	p := me(t, s, u).Pass
+	r, err := s.Scan(admin, QRPayload(p.Key, p.ID, s.Now()), 1)
+	if err != nil || r.Outcome != "allowed" {
+		t.Fatalf("scan: %v %+v", err, r)
+	}
+	if err := s.AdminUndoEntry(p.ID); err != nil {
+		t.Fatalf("undo: %v", err)
+	}
+	if m := me(t, s, u); m.Pass.EnteredAt != nil {
+		t.Fatalf("still entered: %+v", m.Pass)
+	}
+	list, _ := s.AdminPasses("", "entered")
+	if len(list) != 0 {
+		t.Fatalf("still in entered list: %d", len(list))
+	}
+	r, _ = s.Scan(admin, QRPayload(p.Key, p.ID, s.Now()), 1)
+	if r.Outcome != "allowed" {
+		t.Fatalf("rescan after undo: %+v", r)
+	}
+}
+
+func TestStaffGetOwnPass(t *testing.T) {
+	s, _ := setup(t)
+	// A non-IIMA volunteer, set up before they ever sign in.
+	p, err := s.GrantAccess("helper@gmail.com", "volunteer")
+	if err != nil || p.Role != "volunteer" {
+		t.Fatalf("grant: %v %+v", err, p)
+	}
+	u := signIn(t, s, "helper@gmail.com", "Helper")
+	m := me(t, s, u)
+	if m.Pass == nil || m.Pass.Kind != "own" || m.Pass.TypeLabel != "Cultcomm team" || m.Pass.Key == "" {
+		t.Fatalf("volunteer pass: %+v", m.Pass)
+	}
+	// It scans in like any other pass.
+	r, _ := s.Scan(u, QRPayload(m.Pass.Key, m.Pass.ID, s.Now()), 1)
+	if r.Outcome != "allowed" {
+		t.Fatalf("scan: %+v", r)
+	}
+	// Promoting someone again doesn't create a second pass.
+	admin := "admin"
+	s.UpdatePerson(u.Id, PersonUpdate{Role: &admin})
+	if n, _ := s.app.CountRecords("passes", nil); n != 1 {
+		t.Fatalf("passes: %d", n)
+	}
+	// Non-IIMA people can't be given a plain pass this way.
+	if _, err := s.GrantAccess("stranger@gmail.com", "member"); err == nil {
+		t.Fatal("member grant for a stranger should fail")
+	}
+}

@@ -1,5 +1,5 @@
 import type { ComponentChildren, JSX } from 'preact';
-import { useMemo } from 'preact/hooks';
+import { useEffect, useMemo, useState } from 'preact/hooks';
 import { encode } from 'uqr';
 import { asset, toastStore } from '../lib.ts';
 
@@ -33,6 +33,25 @@ export function Btn(props: { children: ComponentChildren; onClick?: () => void; 
     <button type={props.type ?? 'button'} class={`btn ${props.variant ?? ''}`} onClick={props.onClick} disabled={props.disabled} style={props.style}>
       <span>{props.children}</span><span aria-hidden="true">{props.icon ?? '→'}</span>
     </button>
+  );
+}
+
+/**
+ * A button that asks "Tap again to …" before acting. Used instead of window.confirm(), which many
+ * phone and in-app browsers (WhatsApp, Instagram, installed PWAs) block silently, so the tap did nothing.
+ */
+export function ConfirmBtn(props: { children: ComponentChildren; confirmLabel: string; onConfirm: () => void; disabled?: boolean; variant?: string; icon?: string }) {
+  const [armed, setArmed] = useState(false);
+  useEffect(() => {
+    if (!armed) return;
+    const t = setTimeout(() => setArmed(false), 4000);
+    return () => clearTimeout(t);
+  }, [armed]);
+  return (
+    <Btn variant={armed ? 'danger' : props.variant} disabled={props.disabled} icon={armed ? '!' : props.icon}
+      onClick={() => { if (armed) { setArmed(false); props.onConfirm(); } else setArmed(true); }}>
+      {armed ? props.confirmLabel : props.children}
+    </Btn>
   );
 }
 

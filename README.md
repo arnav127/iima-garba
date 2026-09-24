@@ -22,6 +22,7 @@ Pass distribution and gate entry for Cultcomm's Garba Night. Mobile first, in th
   | Orange | Guests | Photo ID |
   | Teal | Exchange | College ID |
 
+- **Volunteers and admins** get a pass of their own too (any Google account; non-IIMA ones show as orange **Cultcomm team**, check photo ID), reachable from **MY QR** on the scanner and **Show my pass QR** on the dashboard.
 - **Volunteers** scan with their phone camera. If a QR won't scan (for example, a cracked screen), they can type the pass code; that requires an ID check before they tap **Admit**.
 - **Pass codes** look like `KP7X-4MQ`: 6 random characters plus a check character, from an alphabet without look-alikes (no 0/O/1/I/L/U).
   - They're random, so nobody can work out other people's codes. About 730 million are possible, so a made-up code hits a real pass roughly 1 in 150,000 times.

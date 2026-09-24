@@ -232,6 +232,9 @@ func (s *Service) UpdatePerson(id string, in PersonUpdate) (*AdminPerson, error)
 	if err := s.app.Save(u); err != nil {
 		return nil, err
 	}
+	if err := ensureOwnPass(s.app, u); err != nil { // volunteers and admins get a pass of their own
+		return nil, err
+	}
 	counts, err := s.guestCounts()
 	if err != nil {
 		return nil, err
@@ -241,7 +244,7 @@ func (s *Service) UpdatePerson(id string, in PersonUpdate) (*AdminPerson, error)
 }
 
 // GrantAccess gives a role to someone by email, creating their account if they haven't signed in yet
-// (IIMA addresses only, so volunteers can be set up before the night).
+// (any address for volunteers and admins, so they can be set up before the night).
 func (s *Service) GrantAccess(emailRaw, r string) (*AdminPerson, error) {
 	email := strings.ToLower(strings.TrimSpace(emailRaw))
 	if !isEmail(email) {
@@ -252,10 +255,15 @@ func (s *Service) GrantAccess(emailRaw, r string) (*AdminPerson, error) {
 	}
 	u, err := s.app.FindAuthRecordByEmail("users", email)
 	if err != nil {
-		if !s.isMemberEmail(email) {
-			return nil, apiErr(404, "They haven't signed in yet. Non-IIMA people need to sign in once before getting a role.")
+		switch {
+		case s.isMemberEmail(email):
+			u, err = s.SignInUser(email, "")
+		case r == "member":
+			return nil, apiErr(404, "Nobody with this email has signed in yet")
+		default: // a non-IIMA volunteer or admin: create the account so they can sign in with this Google account
+			u, err = newUser(s.app, email, strings.Split(email, "@")[0], "guest", r)
 		}
-		if u, err = s.SignInUser(email, ""); err != nil {
+		if err != nil {
 			return nil, err
 		}
 	}

@@ -81,7 +81,7 @@ function App() {
       // Your own pass first, then everyone you added: swipe through them at the gate.
       const passes = [me.pass, ...me.guests].filter((p) => p !== null);
       const start = Number(new URLSearchParams(location.search).get('i')) || 0;
-      return passes.length ? <PassQr passes={passes} event={me.event} start={start} onBack={() => navigate('/home')} refresh={refreshMe} /> : <Redirect to="/home" />;
+      return passes.length ? <PassQr passes={passes} event={me.event} start={start} onBack={() => navigate(homeFor(me))} refresh={refreshMe} /> : <Redirect to="/home" />;
     }
     case '/scan':
       return me.user.role === 'member' ? <Redirect to="/home" /> : <Scan me={me} />;

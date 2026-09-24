@@ -1,6 +1,6 @@
 import { useState } from 'preact/hooks';
 import { GROUP_LABEL, TONES, type MeResponse, type PassView } from '../../../shared/types.ts';
-import { Btn, Logo, MiniQr, Mirrors, Rainbow, Sheet, Top } from '../components/ui.tsx';
+import { Btn, ConfirmBtn, Logo, MiniQr, Mirrors, Rainbow, Sheet, Top } from '../components/ui.tsx';
 import { api, appPath, initials, istTime, navigate, setMe, share, signOut, toast, toastError } from '../lib.ts';
 
 export function AccountSheet({ me, onClose }: { me: MeResponse; onClose: () => void }) {
@@ -10,6 +10,7 @@ export function AccountSheet({ me, onClose }: { me: MeResponse; onClose: () => v
         <span style={{ font: '800 26px/1 var(--fd)', fontStretch: '75%' }}>{me.user.name.toUpperCase()}</span>
         <span class="hint" style={{ fontSize: 13 }}>{me.user.email} · {GROUP_LABEL[me.user.group]}</span>
       </div>
+      {me.pass && me.user.role !== 'member' && <Btn icon="▣" onClick={() => { onClose(); navigate('/pass'); }}>Show my pass QR</Btn>}
       {me.pass && appPath() !== '/home' && <Btn variant="ghost" onClick={() => { onClose(); navigate('/home'); }}>My passes</Btn>}
       {(me.user.role === 'volunteer' || me.user.role === 'admin') && appPath() !== '/scan' && <Btn variant="ghost" onClick={() => { onClose(); navigate('/scan'); }}>Gate scanner</Btn>}
       {me.user.role === 'admin' && appPath() !== '/admin' && <Btn variant="ghost" onClick={() => { onClose(); navigate('/admin'); }}>Cultcomm dashboard</Btn>}
@@ -35,7 +36,6 @@ export function Home({ me }: { me: MeResponse }) {
   }
 
   async function remove(p: PassView) {
-    if (!confirm(`Remove ${p.holderName}'s pass? Their QR and link stop working.`)) return;
     setBusy(true);
     try {
       setMe(await api<MeResponse>(`/guests/${p.id}/remove`, { body: {} }));
@@ -131,7 +131,7 @@ export function Home({ me }: { me: MeResponse }) {
           </div>
           {!sheet.pass.enteredAt && <Btn onClick={() => navigate(`/pass?i=${sheet.index}`)}>Show their QR</Btn>}
           {!sheet.pass.enteredAt && <Btn variant="ghost" icon="↗" onClick={() => shareLink(sheet.pass)}>Share pass link (WhatsApp)</Btn>}
-          {!sheet.pass.enteredAt && <Btn variant="ghost" disabled={busy} icon="✕" onClick={() => remove(sheet.pass)}>Remove guest</Btn>}
+          {!sheet.pass.enteredAt && <ConfirmBtn variant="ghost" disabled={busy} icon="✕" confirmLabel="Tap again · their QR and link stop working" onConfirm={() => remove(sheet.pass)}>Remove guest</ConfirmBtn>}
           {sheet.pass.enteredAt && <Btn variant="ghost" icon="✓" onClick={() => setSheet(null)}>Done</Btn>}
         </Sheet>
       )}
