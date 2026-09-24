@@ -23,9 +23,9 @@ export const TONES: Record<Tone, { color: string; label: string; id: string }> =
 
 export interface EventInfo {
   title: string;       // "Garba Night"
-  dateLabel: string;   // "Sat 17 Oct"
-  venue: string;       // "Louis Kahn Plaza"
-  venueShort: string;  // "LKP"
+  dateLabel: string;   // "Fri 16 Oct"
+  venue: string;       // "Football Ground"
+  venueShort: string;  // "Football Ground" (shown in tight spaces)
   timeLabel: string;   // "8 PM"
   dressCode: string;
   gates: number;

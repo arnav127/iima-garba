@@ -21,7 +21,7 @@ import '@fontsource/mukta-vaani/700.css';
 import './styles.css';
 
 const FALLBACK_EVENT: EventInfo = {
-  title: 'Garba Night', dateLabel: 'Sat 17 Oct', venue: 'Louis Kahn Plaza', venueShort: 'LKP', timeLabel: '8 PM',
+  title: 'Garba Night', dateLabel: 'Fri 16 Oct', venue: 'Football Ground', venueShort: 'Football Ground', timeLabel: '8 PM',
   dressCode: 'Dress code: chaniya choli, kediyu, kurta. Dandiyas provided.', gates: 2,
 };
 

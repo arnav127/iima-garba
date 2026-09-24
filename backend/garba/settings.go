@@ -42,9 +42,9 @@ func defaultSettings() Settings {
 	return Settings{
 		Event: EventInfo{
 			Title:      "Garba Night",
-			DateLabel:  "Sat 17 Oct",
-			Venue:      "Louis Kahn Plaza",
-			VenueShort: "LKP",
+			DateLabel:  "Fri 16 Oct",
+			Venue:      "Football Ground",
+			VenueShort: "Football Ground",
 			TimeLabel:  "8 PM",
 			DressCode:  "Dress code: chaniya choli, kediyu, kurta. Dandiyas provided.",
 			Gates:      2,

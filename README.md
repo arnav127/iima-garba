@@ -182,7 +182,7 @@ Edit these in the app under Admin → Settings:
 - Re-uploading updates rows instead of duplicating them.
 
 Placeholders to confirm with Cultcomm:
-- Date: Sat 17 Oct
-- Venue: LKP
+- Date: Fri 16 Oct
+- Venue: Football Ground
 - Start: 8 PM
 - Gates: 2

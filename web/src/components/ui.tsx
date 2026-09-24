@@ -89,7 +89,7 @@ export function FactGrid({ items }: { items: [string, string][] }) {
       {items.map(([k, v], i) => (
         <div key={k} style={{ padding: 12, display: 'flex', flexDirection: 'column', borderRight: i < items.length - 1 ? '2px solid var(--ink)' : undefined, minWidth: 0 }}>
           <span style={{ font: '600 11px var(--fb)', letterSpacing: '.1em', color: 'var(--muted)' }}>{k}</span>
-          <span style={{ font: '700 17px var(--fd)', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>{v}</span>
+          <span style={{ font: '700 17px/1.1 var(--fd)', overflowWrap: 'anywhere' }}>{v}</span>
         </div>
       ))}
     </div>
