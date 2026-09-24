@@ -1,7 +1,7 @@
 import type { ComponentChildren, JSX } from 'preact';
 import { useMemo } from 'preact/hooks';
 import { encode } from 'uqr';
-import { toastStore } from '../lib.ts';
+import { asset, toastStore } from '../lib.ts';
 
 export const Rainbow = ({ h = 14 }: { h?: number }) => <div class="rainbow" style={{ height: h }} />;
 
@@ -15,7 +15,7 @@ export const Mirrors = ({ color = 'var(--yellow)', h = 14, bg }: { color?: strin
 );
 
 export const Logo = ({ size }: { size: number }) => (
-  <img class="logo" src="/cultcomm.jpg" alt="Cultcomm" width={size} height={size} style={{ width: size, height: size }} />
+  <img class="logo" src={asset('cultcomm.jpg')} alt="Cultcomm" width={size} height={size} style={{ width: size, height: size }} />
 );
 
 export const Top = () => <div class="top" />;

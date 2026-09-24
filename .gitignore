@@ -5,3 +5,6 @@ backend/garba-server
 *.local
 .env
 .vercel
+data/
+logs/
+.tools/

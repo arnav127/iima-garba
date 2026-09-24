@@ -77,28 +77,59 @@ Tests: `npm run backend:test` covers:
 
 `npm run typecheck` checks the web app.
 
-## Deploy on a campus server
+## Deploy on the campus server (students.iima.ac.in/garba2026)
+
+Needs Node 20+ and git. Go is installed automatically into `./.tools` if missing, so there's no sudo for the build.
 
 ```sh
-npm ci && npm run build && npm run backend:build        # backend/garba-server + backend/pb_public
-sudo mkdir -p /opt/garba && sudo cp -r backend/garba-server backend/pb_public /opt/garba/
-sudo useradd --system garba && sudo chown -R garba:garba /opt/garba
-sudo cp deploy/garba.env.example /opt/garba/garba.env   # fill it in
-sudo cp deploy/garba.service /etc/systemd/system/ && sudo systemctl enable --now garba
+git clone https://github.com/arnav127/iima-garba.git && cd iima-garba
+./start.sh            # first run creates .env and stops: fill in GOOGLE_* and ADMIN_EMAILS
+./start.sh            # installs, builds for /garba2026/, starts under PM2, health-checks
+pm2 startup           # once: run the command it prints (with sudo) so it survives reboots
 ```
 
-- Cross-compile from a laptop with `GOOS=linux GOARCH=amd64 npm run backend:build`.
-- **HTTPS is required** (for Google sign-in and the phone camera). If the server has a public DNS name, change `ExecStart` to `serve garba.iima.ac.in` and PocketBase gets a Let's Encrypt certificate itself (ports 80/443). Otherwise put it behind the campus reverse proxy.
-- Superuser for the PocketBase dashboard: `./garba-server superuser upsert you@iima.ac.in 'a-long-password' --dir /opt/garba/pb_data`.
-- Backups: the whole state is `/opt/garba/pb_data`. Schedule backups in the dashboard (Settings → Backups).
-- Exchange list from the server shell: `./garba-server exchange guests.xlsx --dir /opt/garba/pb_data`, or upload it in Admin → Exchange.
-- Capacity: one small VM handles thousands of people. A gate scan is one SQLite transaction (well under a millisecond), and QR codes are generated on phones, not the server.
+- **Updates:** `git pull && ./start.sh` rebuilds and reloads with no downtime.
+- **Day to day:** `pm2 logs garba2026` for logs; `pm2 restart garba2026` to restart. After editing `.env`, run `pm2 startOrReload ecosystem.config.cjs --update-env`.
+- **Settings:** everything lives in `.env` (see `.env.example`): `APP_URL`, `BASE_PATH`, `PORT` (default 8090, bound to 127.0.0.1 only) and `DATA_DIR`.
+- **Backups:** back up `DATA_DIR` (default `./data`), or schedule backups in the dashboard (Settings → Backups).
+- **Dashboard:** `https://students.iima.ac.in/garba2026/_/`. Set `SUPERUSER_EMAIL` and `SUPERUSER_PASSWORD` in `.env` and `start.sh` creates the login.
+- **Exchange list from the shell:** `./backend/garba-server exchange guests.xlsx --dir data`
+
+### Apache
+
+One prefix carries everything (app, API under `/garba2026/api/`, dashboard under `/garba2026/_/`), because PocketBase serves the app and the API from the same process. Paste `deploy/apache-garba2026.conf` inside the existing `<VirtualHost *:443>` for students.iima.ac.in:
+
+```apache
+RedirectMatch 301 ^/garba2026$ /garba2026/
+
+ProxyPass        /garba2026/api/realtime http://127.0.0.1:8090/api/realtime flushpackets=on timeout=3600
+ProxyPassReverse /garba2026/api/realtime http://127.0.0.1:8090/api/realtime
+
+ProxyPass        /garba2026/ http://127.0.0.1:8090/ timeout=120
+ProxyPassReverse /garba2026/ http://127.0.0.1:8090/
+
+<Location /garba2026/>
+    RequestHeader set X-Forwarded-Proto "https"
+    RequestHeader set X-Forwarded-Prefix "/garba2026"
+</Location>
+```
+
+```sh
+sudo a2enmod proxy proxy_http headers && sudo apachectl configtest && sudo systemctl reload apache2
+```
+
+- **Keep the realtime line above the general `ProxyPass`.** It stops Apache from buffering the live dashboard updates.
+- **HTTPS is required** for Google sign-in and the phone camera; students.iima.ac.in already has it.
+- **Capacity:** one small VM handles thousands of people. A gate scan is one SQLite transaction (well under a millisecond), and QR codes are generated on phones, not the server.
+- **Hosting at a different path:** change `BASE_PATH` and `APP_URL` in `.env`, then run `./start.sh` again.
 
 ### Google sign-in setup
 
 1. Google Cloud Console → APIs & Services → **OAuth consent screen**: External, app name "Garba Night · IIMA", add your domain. **Publish** it, so any Google account can sign in, not just test users.
-2. **Credentials → Create OAuth client ID → Web application.** Authorised redirect URI: `<APP_URL>/auth/callback`.
-3. Put the client ID and secret in `garba.env` and restart.
+2. **Credentials → Create OAuth client ID → Web application.**
+   - Authorised JavaScript origin: `https://students.iima.ac.in`
+   - Authorised redirect URI: `https://students.iima.ac.in/garba2026/auth/callback`
+3. Put the client ID and secret in `.env` and run `./start.sh` again.
 
 If @iima.ac.in mail is on Microsoft 365 instead of Google Workspace, also fill in `MICROSOFT_CLIENT_ID` and `MICROSOFT_CLIENT_SECRET`. A "Continue with Microsoft" button then appears.
 
@@ -112,7 +143,7 @@ The web app is a static build, so it can be hosted on Vercel while PocketBase ru
 
 ## Configuration
 
-Environment variables (see `deploy/garba.env.example`), applied on every start:
+Environment variables in `.env` (see `.env.example`), applied on every start:
 
 | Variable | What it does |
 | --- | --- |
@@ -121,6 +152,7 @@ Environment variables (see `deploy/garba.env.example`), applied on every start:
 | `ADMIN_EMAILS` | Comma-separated emails that are always Cultcomm admins |
 | `GOOGLE_CLIENT_ID`, `GOOGLE_CLIENT_SECRET` | Google sign-in. Redirect URI: `<APP_URL>/auth/callback` |
 | `MICROSOFT_CLIENT_ID`, `MICROSOFT_CLIENT_SECRET` | Optional Microsoft sign-in |
+| `BASE_PATH`, `PORT`, `DATA_DIR`, `TRUSTED_PROXY_HEADERS` | Where it runs; see `.env.example` |
 | `VITE_PB_URL` (build time) | Only when the web app is hosted separately from PocketBase |
 
 Edit these in the app under Admin → Settings:

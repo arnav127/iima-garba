@@ -1,9 +1,11 @@
 // Keeps the app shell available with a weak network at the venue.
-// Hashed assets: cache-first. Pages: network-first with cached fallback. API: never cached here.
-const CACHE = 'garba-v2';
+// Hashed assets: cache-first. Pages: network-first with cached fallback. API and dashboard: never cached here.
+// Works under a sub-path (e.g. /garba2026/): everything is relative to this worker's scope.
+const CACHE = 'garba-v3';
+const BASE = new URL(self.registration.scope).pathname; // "/garba2026/" or "/"
 
 self.addEventListener('install', (e) => {
-  e.waitUntil(caches.open(CACHE).then((c) => c.addAll(['/', '/cultcomm.jpg'])).then(() => self.skipWaiting()));
+  e.waitUntil(caches.open(CACHE).then((c) => c.addAll([BASE, BASE + 'cultcomm.jpg'])).then(() => self.skipWaiting()));
 });
 
 self.addEventListener('activate', (e) => {
@@ -12,8 +14,9 @@ self.addEventListener('activate', (e) => {
 
 self.addEventListener('fetch', (e) => {
   const url = new URL(e.request.url);
-  if (e.request.method !== 'GET' || url.origin !== location.origin || url.pathname.startsWith('/api/') || url.pathname.startsWith('/_/')) return;
-  if (url.pathname.startsWith('/assets/')) {
+  const p = url.pathname;
+  if (e.request.method !== 'GET' || url.origin !== location.origin || !p.startsWith(BASE) || p.startsWith(BASE + 'api/') || p.startsWith(BASE + '_/')) return;
+  if (p.startsWith(BASE + 'assets/')) {
     e.respondWith(caches.match(e.request).then((hit) => hit || fetch(e.request).then((res) => {
       const copy = res.clone();
       caches.open(CACHE).then((c) => c.put(e.request, copy));
@@ -24,8 +27,8 @@ self.addEventListener('fetch', (e) => {
   if (e.request.mode === 'navigate') {
     e.respondWith(fetch(e.request).then((res) => {
       const copy = res.clone();
-      caches.open(CACHE).then((c) => c.put('/', copy));
+      caches.open(CACHE).then((c) => c.put(BASE, copy));
       return res;
-    }).catch(() => caches.match('/')));
+    }).catch(() => caches.match(BASE)));
   }
 });

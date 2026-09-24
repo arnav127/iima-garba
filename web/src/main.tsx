@@ -2,7 +2,7 @@ import { render, type ComponentType } from 'preact';
 import { useEffect, useState } from 'preact/hooks';
 import type { EventInfo, MeResponse } from '../../shared/types.ts';
 import { Spinner, Toast } from './components/ui.tsx';
-import { api, meStore, navigate, refreshMe, renewSession, routeStore, storage } from './lib.ts';
+import { api, asset, BASE, meStore, navigate, refreshMe, renewSession, routeStore, storage } from './lib.ts';
 import { homeFor } from './routes.ts';
 import { AuthCallback } from './screens/AuthCallback.tsx';
 import { GuestHome, PassLink } from './screens/GuestHome.tsx';
@@ -95,5 +95,5 @@ function App() {
 render(<><App /><Toast /></>, document.getElementById('app')!);
 
 if (import.meta.env.PROD && 'serviceWorker' in navigator) {
-  addEventListener('load', () => navigator.serviceWorker.register('/sw.js').catch(() => {}));
+  addEventListener('load', () => navigator.serviceWorker.register(asset('sw.js'), { scope: `${BASE}/` }).catch(() => {}));
 }

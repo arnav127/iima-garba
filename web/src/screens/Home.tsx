@@ -1,7 +1,7 @@
 import { useState } from 'preact/hooks';
 import { GROUP_LABEL, TONES, type MeResponse, type PassView } from '../../../shared/types.ts';
 import { Btn, Logo, MiniQr, Mirrors, Rainbow, Sheet, Top } from '../components/ui.tsx';
-import { api, initials, istTime, navigate, setMe, share, signOut, toast, toastError } from '../lib.ts';
+import { api, appPath, initials, istTime, navigate, setMe, share, signOut, toast, toastError } from '../lib.ts';
 
 export function AccountSheet({ me, onClose }: { me: MeResponse; onClose: () => void }) {
   return (
@@ -10,9 +10,9 @@ export function AccountSheet({ me, onClose }: { me: MeResponse; onClose: () => v
         <span style={{ font: '800 26px/1 var(--fd)', fontStretch: '75%' }}>{me.user.name.toUpperCase()}</span>
         <span class="hint" style={{ fontSize: 13 }}>{me.user.email} · {GROUP_LABEL[me.user.group]}</span>
       </div>
-      {me.pass && location.pathname !== '/home' && <Btn variant="ghost" onClick={() => { onClose(); navigate('/home'); }}>My passes</Btn>}
-      {(me.user.role === 'volunteer' || me.user.role === 'admin') && location.pathname !== '/scan' && <Btn variant="ghost" onClick={() => { onClose(); navigate('/scan'); }}>Gate scanner</Btn>}
-      {me.user.role === 'admin' && location.pathname !== '/admin' && <Btn variant="ghost" onClick={() => { onClose(); navigate('/admin'); }}>Cultcomm dashboard</Btn>}
+      {me.pass && appPath() !== '/home' && <Btn variant="ghost" onClick={() => { onClose(); navigate('/home'); }}>My passes</Btn>}
+      {(me.user.role === 'volunteer' || me.user.role === 'admin') && appPath() !== '/scan' && <Btn variant="ghost" onClick={() => { onClose(); navigate('/scan'); }}>Gate scanner</Btn>}
+      {me.user.role === 'admin' && appPath() !== '/admin' && <Btn variant="ghost" onClick={() => { onClose(); navigate('/admin'); }}>Cultcomm dashboard</Btn>}
       <Btn icon="↩" onClick={() => { onClose(); signOut(); navigate('/', true); }}>Sign out</Btn>
     </Sheet>
   );

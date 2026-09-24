@@ -18,6 +18,7 @@ import (
 //	MICROSOFT_CLIENT_ID      optional "Sign in with Microsoft"
 //	MICROSOFT_CLIENT_SECRET
 //	ADMIN_EMAILS             comma separated; these people are always Cultcomm admins
+//	TRUSTED_PROXY_HEADERS    e.g. X-Forwarded-For behind Apache/nginx, so logs and rate limits see real client IPs
 func applyEnvConfig(app core.App) error {
 	env := os.Getenv
 
@@ -28,6 +29,11 @@ func applyEnvConfig(app core.App) error {
 	}
 	if settings.Meta.AppName != "Garba Night · IIMA" {
 		settings.Meta.AppName, changed = "Garba Night · IIMA", true
+	}
+	if v := env("TRUSTED_PROXY_HEADERS"); v != "" && strings.Join(settings.TrustedProxy.Headers, ",") != v {
+		settings.TrustedProxy.Headers = strings.Split(v, ",")
+		settings.TrustedProxy.UseLeftmostIP = false // the proxy appends the real client IP on the right
+		changed = true
 	}
 	if changed {
 		if err := app.Save(settings); err != nil {

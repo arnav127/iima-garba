@@ -6,7 +6,15 @@ import { syncClock } from './qr.ts';
 // ---------- API ----------
 
 /** Same origin on campus (PocketBase serves the app); set VITE_PB_URL when the app is hosted elsewhere, e.g. Vercel. */
-export const pb = new PocketBase(import.meta.env.VITE_PB_URL || location.origin);
+/**
+ * The app can live under a sub-path, e.g. https://students.iima.ac.in/garba2026/ (set VITE_BASE at build time).
+ * BASE is that prefix without the trailing slash ('' at the root). App routes below are written without it.
+ */
+export const BASE = import.meta.env.BASE_URL.replace(/\/$/, '');
+export const asset = (file: string) => `${BASE}/${file}`;
+
+/** Same origin and path as the app (PocketBase serves both); set VITE_PB_URL when the API is hosted elsewhere, e.g. Vercel. */
+export const pb = new PocketBase(import.meta.env.VITE_PB_URL || location.origin + BASE);
 pb.autoCancellation(false);
 
 export class ApiError extends Error {
@@ -49,7 +57,7 @@ export async function pbCall<T>(fn: () => Promise<T>): Promise<T> {
 // ---------- sign-in (OAuth2 redirect flow, works on mobile browsers; no emails are ever sent) ----------
 
 const OAUTH_KEY = 'garba:oauth';
-export const oauthRedirect = () => `${location.origin}/auth/callback`;
+export const oauthRedirect = () => `${location.origin}${BASE}/auth/callback`;
 export type Provider = 'google' | 'microsoft';
 
 /** Which sign-in buttons to show (Google always; Microsoft if configured). */
@@ -161,17 +169,19 @@ export function onPassesChange(cb: () => void): () => void {
 
 // ---------- router ----------
 
-export const routeStore = createStore(location.pathname);
+/** Current app route without the BASE prefix, e.g. '/home'. */
+export const appPath = () => location.pathname.slice(BASE.length) || '/';
+export const routeStore = createStore(appPath());
 
 export function navigate(to: string, replace = false) {
-  if (to === location.pathname + location.search) return;
-  if (replace) history.replaceState(null, '', to);
-  else history.pushState(null, '', to);
-  routeStore.set(location.pathname);
+  if (to === appPath() + location.search) return;
+  if (replace) history.replaceState(null, '', BASE + to);
+  else history.pushState(null, '', BASE + to);
+  routeStore.set(appPath());
   window.scrollTo(0, 0);
 }
 
-addEventListener('popstate', () => routeStore.set(location.pathname));
+addEventListener('popstate', () => routeStore.set(appPath()));
 
 // ---------- toast ----------
 
