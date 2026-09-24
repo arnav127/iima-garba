@@ -34,11 +34,12 @@ function toApiError(e: unknown): ApiError {
 }
 
 /** Calls a custom /api/garba route. */
-export async function api<T>(path: string, init?: { method?: string; body?: unknown }): Promise<T> {
+export async function api<T>(path: string, init?: { method?: string; body?: unknown; timeoutMs?: number }): Promise<T> {
   try {
     return await pb.send<T>('/api/garba' + path, {
       method: init?.method ?? (init?.body !== undefined ? 'POST' : 'GET'),
       body: init?.body,
+      ...(init?.timeoutMs ? { signal: AbortSignal.timeout(init.timeoutMs) } : {}),
     });
   } catch (e) {
     throw toApiError(e);

@@ -24,7 +24,9 @@ import (
 const (
 	QRStep   = 15
 	QRWindow = 2
-	qrPrefix = "G2."
+	// RescanGraceSeconds: a volunteer re-scanning a pass they just admitted sees green, not "Already used".
+	RescanGraceSeconds = 30
+	qrPrefix           = "G2."
 )
 
 type Service struct {
@@ -576,7 +578,7 @@ func (s *Service) Scan(volunteer *core.Record, payloadRaw string, gate int) (*Sc
 		}
 		v := s.viewOne(s.app, p, false)
 		if r := s.stateCheck(p, v); r != nil {
-			return r, nil
+			return s.graceRescan(volunteer, p, v, r), nil
 		}
 		r := s.result("check", "Check ID first", "Typed code: "+idCheck(v)+", then admit", &v)
 		r.PassID = p.Id
@@ -621,6 +623,16 @@ func (s *Service) stateCheck(p *core.Record, v PassView) *ScanResult {
 	return nil
 }
 
+// graceRescan turns "Already used" green when the same volunteer let this pass in moments ago,
+// usually because the reply was lost on a bad network and they scanned or typed it again.
+func (s *Service) graceRescan(volunteer, p *core.Record, v PassView, r *ScanResult) *ScanResult {
+	ago := (s.nowMs() - int64(p.GetFloat("enteredAt"))) / 1000
+	if r.Outcome == "used" && p.GetString("enteredBy") == volunteer.Id && ago >= 0 && ago < RescanGraceSeconds {
+		return s.result("allowed", "Entry allowed", fmt.Sprintf("You let them in %ds ago · %s", ago, idCheck(v)), &v)
+	}
+	return r
+}
+
 func (s *Service) admit(volunteer *core.Record, p *core.Record, v PassView, gateRaw int) (*ScanResult, error) {
 	gate := min(max(gateRaw, 1), s.Settings().Event.Gates)
 	var blocked *ScanResult
@@ -630,6 +642,7 @@ func (s *Service) admit(volunteer *core.Record, p *core.Record, v PassView, gate
 			return err
 		}
 		if blocked = s.stateCheck(fresh, v); blocked != nil {
+			blocked = s.graceRescan(volunteer, fresh, v, blocked)
 			return nil
 		}
 		fresh.Set("enteredAt", s.nowMs())

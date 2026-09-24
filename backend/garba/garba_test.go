@@ -2,6 +2,7 @@ package garba
 
 import (
 	"bytes"
+	"fmt"
 	"strings"
 	"sync"
 	"testing"
@@ -163,10 +164,22 @@ func TestRotatingQRScan(t *testing.T) {
 	if r.Outcome != "allowed" || r.Name != "Aarav Shah" || r.Tone != "student" || r.Entered != 1 {
 		t.Fatalf("allowed: %+v", r)
 	}
-	r, _ = s.Scan(vol, QRPayload(p.Key, p.ID, now), 1)
+	// Same volunteer re-scanning within 30 s (e.g. the reply was lost): still green.
+	if r, _ := s.Scan(vol, QRPayload(p.Key, p.ID, now), 3); r.Outcome != "allowed" || !strings.HasPrefix(r.Sub, "You let them in 0s ago") {
+		t.Fatalf("own rescan: %+v", r)
+	}
+	// Anyone else, or later: red, with when and where.
+	other := signIn(t, s, "p24ravi@iima.ac.in", "Ravi")
+	r, _ = s.Scan(other, QRPayload(p.Key, p.ID, now), 1)
 	if r.Outcome != "used" || r.Sub != "Scanned at 7:41 PM · Gate 3" {
 		t.Fatalf("used: %+v", r)
 	}
+	later := now.Add(31 * time.Second)
+	s.Now = func() time.Time { return later }
+	if r, _ := s.Scan(vol, QRPayload(p.Key, p.ID, later), 3); r.Outcome != "used" {
+		t.Fatalf("own rescan after grace: %+v", r)
+	}
+	s.Now = func() time.Time { return now }
 	if m := me(t, s, aarav); m.Pass.EnteredAt == nil || *m.Pass.EnteredGate != 3 {
 		t.Fatalf("pass should show entered: %+v", m.Pass)
 	}
@@ -187,11 +200,15 @@ func TestRotatingQRScan(t *testing.T) {
 	if r, _ = s.Admit(vol, r.PassID, 2); r.Outcome != "allowed" {
 		t.Fatalf("admit: %+v", r)
 	}
+	// Reply lost, volunteer types the code again: green, not "Already used".
+	if r2, _ := s.Scan(vol, code, 2); r2.Outcome != "allowed" || !strings.HasPrefix(r2.Sub, "You let them in") {
+		t.Fatalf("retyped after admit: %+v", r2)
+	}
 	if _, err := s.RemoveGuest(aarav, g.Guests[0].ID); err == nil {
 		t.Fatal("entered guest can't be removed")
 	}
 	stats, _ := s.Stats()
-	if stats.Entered != 2 || stats.Members != 2 || stats.Guests != 1 {
+	if stats.Entered != 2 || stats.Members != 3 || stats.Guests != 1 {
 		t.Fatalf("stats: %+v", stats)
 	}
 }
@@ -213,26 +230,30 @@ func TestPartialSettings(t *testing.T) {
 func TestConcurrentScansAdmitOnce(t *testing.T) {
 	s, _ := setup(t)
 	aarav := signIn(t, s, "p25aarav@iima.ac.in", "Aarav Shah")
-	vol := signIn(t, s, "p24meera@iima.ac.in", "Meera")
 	p := me(t, s, aarav).Pass
 	payload := QRPayload(p.Key, p.ID, time.Now())
+	// 20 different volunteers at 3 gates scan the same QR at the same moment.
+	vols := make([]*core.Record, 20)
+	for i := range vols {
+		vols[i] = signIn(t, s, fmt.Sprintf("p24vol%02d@iima.ac.in", i), "Vol")
+	}
 	var wg sync.WaitGroup
 	var mu sync.Mutex
 	allowed := 0
-	for i := 0; i < 20; i++ {
+	for i, v := range vols {
 		wg.Add(1)
-		go func(gate int) {
+		go func(v *core.Record, gate int) {
 			defer wg.Done()
-			if r, err := s.Scan(vol, payload, gate); err == nil && r.Outcome == "allowed" {
+			if r, err := s.Scan(v, payload, gate); err == nil && r.Outcome == "allowed" {
 				mu.Lock()
 				allowed++
 				mu.Unlock()
 			}
-		}(i%3 + 1)
+		}(v, i%3+1)
 	}
 	wg.Wait()
-	if allowed != 1 {
-		t.Fatalf("allowed %d times", allowed)
+	if allowed != 1 || s.EnteredCount() != 1 {
+		t.Fatalf("allowed %d times, entered %d", allowed, s.EnteredCount())
 	}
 }
 

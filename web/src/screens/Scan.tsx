@@ -17,6 +17,28 @@ const LOOK: Record<ScanResult['outcome'] | 'idle', { bg: string; icon: string }>
 
 type CamState = 'starting' | 'on' | 'blocked' | 'none';
 
+// ---- instant feedback, so volunteers can keep their eyes on the person and their ID ----
+let audio: AudioContext | null = null;
+function unlockAudio() {
+  try { audio ??= new AudioContext(); if (audio.state === 'suspended') audio.resume(); } catch { /* no audio */ }
+}
+function beep(ok: boolean) {
+  if (!audio) return;
+  const tones = ok ? [[1320, 0, 0.12]] : [[220, 0, 0.18], [220, 0.24, 0.18]]; // [Hz, start, length]
+  for (const [hz, start, len] of tones) {
+    const o = audio.createOscillator(), g = audio.createGain();
+    o.type = ok ? 'sine' : 'square';
+    o.frequency.value = hz;
+    const t = audio.currentTime + start;
+    g.gain.setValueAtTime(0.0001, t);
+    g.gain.exponentialRampToValueAtTime(0.35, t + 0.01);
+    g.gain.exponentialRampToValueAtTime(0.0001, t + len);
+    o.connect(g).connect(audio.destination);
+    o.start(t);
+    o.stop(t + len + 0.02);
+  }
+}
+
 export function Scan({ me }: { me: MeResponse }) {
   const videoRef = useRef<HTMLVideoElement>(null);
   const [gate, setGate] = useState(() => Math.min(storage.get<number>('garba:gate') ?? 1, me.event.gates));
@@ -27,6 +49,8 @@ export function Scan({ me }: { me: MeResponse }) {
   const [code, setCode] = useState('');
   const [busy, setBusy] = useState(false);
   const [account, setAccount] = useState(false);
+  const [netBad, setNetBad] = useState(false);
+  const [flash, setFlash] = useState<{ bg: string; icon: string; n: number } | null>(null);
   const gateRef = useRef(gate);
   const last = useRef({ key: '', at: 0, busy: false });
   gateRef.current = gate;
@@ -34,7 +58,22 @@ export function Scan({ me }: { me: MeResponse }) {
   function show(r: ScanResult) {
     setResult(r);
     setCount(r.entered);
-    navigator.vibrate?.(r.outcome === 'allowed' ? 80 : r.outcome === 'check' ? [60, 60, 60] : [120, 80, 120]);
+    setNetBad(false);
+    const ok = r.outcome === 'allowed';
+    navigator.vibrate?.(ok ? 80 : r.outcome === 'check' ? [60, 60, 60] : [120, 80, 120]);
+    beep(ok);
+    setFlash((f) => ({ ...LOOK[r.outcome], n: (f?.n ?? 0) + 1 }));
+  }
+
+  function failed(e: unknown, title: string) {
+    const offline = (e as { status?: number }).status === 0;
+    if (offline) setNetBad(true);
+    beep(false);
+    setResult({
+      outcome: 'invalid', title: offline ? 'No connection' : title,
+      sub: offline ? 'Scan again. If it keeps happening, move this phone to Wi-Fi.' : (e as Error).message,
+      name: '—', meta: 'Nothing was recorded on this phone', tone: '', typeLabel: '', entered: count ?? 0,
+    });
   }
 
   async function check(payload: string) {
@@ -45,9 +84,9 @@ export function Scan({ me }: { me: MeResponse }) {
     l.busy = true; l.key = key; l.at = Date.now();
     setBusy(true);
     try {
-      show(await api<ScanResult>('/scan', { body: { payload, gate: gateRef.current } }));
+      show(await api<ScanResult>('/scan', { body: { payload, gate: gateRef.current }, timeoutMs: 6000 }));
     } catch (e) {
-      setResult({ outcome: 'invalid', title: 'Could not check', sub: (e as Error).message, name: '—', meta: 'Try again', tone: '', typeLabel: '', entered: count ?? 0 });
+      failed(e, 'Could not check');
       l.key = '';
     } finally {
       l.busy = false;
@@ -59,12 +98,30 @@ export function Scan({ me }: { me: MeResponse }) {
     if (!result?.passId) return;
     setBusy(true);
     try {
-      show(await api<ScanResult>('/scan/admit', { body: { passId: result.passId, gate: gateRef.current } }));
+      show(await api<ScanResult>('/scan/admit', { body: { passId: result.passId, gate: gateRef.current }, timeoutMs: 6000 }));
       setCode('');
     } catch (e) {
-      setResult({ ...result, outcome: 'invalid', title: 'Could not admit', sub: (e as Error).message });
+      failed(e, 'Could not admit');
     } finally { setBusy(false); }
   }
+
+  // Clear the flash after it fades (a timer, so it also clears when animations are turned off).
+  useEffect(() => {
+    if (!flash) return;
+    const t = setTimeout(() => setFlash(null), 700);
+    return () => clearTimeout(t);
+  }, [flash]);
+
+  // Keep the volunteer's screen on, and unlock sound on the first tap (browsers require a gesture).
+  useEffect(() => {
+    let lock: { release: () => Promise<void> } | undefined;
+    const wake = () => (navigator as unknown as { wakeLock?: { request: (t: string) => Promise<typeof lock> } }).wakeLock?.request('screen').then((l) => { lock = l; }).catch(() => {});
+    wake();
+    const onVisible = () => document.visibilityState === 'visible' && wake();
+    document.addEventListener('visibilitychange', onVisible);
+    addEventListener('pointerdown', unlockAudio);
+    return () => { lock?.release().catch(() => {}); document.removeEventListener('visibilitychange', onVisible); removeEventListener('pointerdown', unlockAudio); };
+  }, []);
 
   // Camera + QR decoding (loaded only on this screen).
   useEffect(() => {
@@ -112,6 +169,7 @@ export function Scan({ me }: { me: MeResponse }) {
           GATE {gate} · {me.user.role === 'admin' ? 'ADMIN' : 'VOLUNTEER'}
         </button>
         <div style={{ display: 'flex', gap: 8, alignItems: 'center' }}>
+          {netBad && <div style={{ padding: '8px 10px', borderRadius: 10, background: 'var(--bad)', color: '#fff', font: "700 13px var(--fb)" }}>NETWORK</div>}
           <div style={{ padding: '8px 14px', borderRadius: 10, background: 'var(--ivory)', font: "700 13px var(--fb)" }}>{count ?? '…'} IN</div>
           <button onClick={() => setAccount(true)} aria-label="Menu"><Logo size={34} /></button>
         </div>
@@ -160,6 +218,11 @@ export function Scan({ me }: { me: MeResponse }) {
           )}
         </div>
       </div>
+      {flash && (
+        <div key={flash.n} class="scan-flash" style={{ background: flash.bg }} aria-hidden="true">
+          <span>{flash.icon}</span>
+        </div>
+      )}
       {account && <AccountSheet me={me} onClose={() => setAccount(false)} />}
     </div>
   );

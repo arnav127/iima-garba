@@ -123,6 +123,16 @@ sudo a2enmod proxy proxy_http headers && sudo apachectl configtest && sudo syste
 - **Capacity:** one small VM handles thousands of people. A gate scan is one SQLite transaction (well under a millisecond), and QR codes are generated on phones, not the server.
 - **Hosting at a different path:** change `BASE_PATH` and `APP_URL` in `.env`, then run `./start.sh` again.
 
+### Gate day: keeping the line fast
+
+The server isn't the bottleneck. In a load test through Apache with 3,000 passes and 20 phones scanning at once, it handled **~1,070 scans per second** (median 14 ms, 99% under 70 ms, 0 errors). What sets the pace is people, phones and the network:
+
+- **Throughput per volunteer:** expect about 3–5 seconds per person (raise the phone, read the QR, glance at the ID), so 12–20 people a minute. For 3,000 people in 30–45 minutes, plan **2–3 scanning phones per gate**. More phones scale linearly.
+- **Put scanner phones on Wi-Fi.** Mobile data near 3,000 people slows down. Each scan is one small request, and the scanner gives up after 6 seconds with a red NETWORK badge rather than freezing. If a reply was lost after the person was admitted, scanning them again shows green ("You let them in 5s ago"), not "Already used".
+- **The scanner scans continuously.** Volunteers don't need to tap anything between people. Each result beeps (high = in, low double = no), vibrates and flashes the whole screen green, red or orange, so volunteers can watch the person and their ID. Tap the screen once after opening the scanner so sound is allowed.
+- **Tell guests to open their pass before the queue** (on signage and in the WhatsApp message). It opens instantly, even offline, but people fumbling for it is the real delay. Families: the host swipes through each QR.
+- **Keep the scanner screen on:** the scanner screen stays awake by itself. Brighter screens on the guests' side scan faster.
+
 ### Google sign-in setup
 
 1. Google Cloud Console → APIs & Services → **OAuth consent screen**: External, app name "Garba Night · IIMA", add your domain. **Publish** it, so any Google account can sign in, not just test users.

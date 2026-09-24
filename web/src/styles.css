@@ -128,7 +128,15 @@ textarea.input { height: auto; min-height: 120px; padding: 12px 14px; font: 400 
 .spin { width: 28px; height: 28px; border-radius: 50%; border: 3px solid var(--slot); border-top-color: var(--pink); animation: rot .7s linear infinite; }
 @keyframes rot { to { transform: rotate(360deg) } }
 
-@media (prefers-reduced-motion: reduce) { *, *::before, *::after { animation: none !important; transition: none !important; } }
+/* Full-screen colour flash on each scan result, readable from arm's length in a dark venue. */
+.scan-flash {
+  position: fixed; inset: 0; z-index: 40; display: grid; place-items: center; pointer-events: none;
+  animation: flash .7s ease-out forwards;
+}
+.scan-flash span { font: 800 180px/1 var(--fd); color: #fff; text-shadow: 0 6px 0 rgba(0, 0, 0, .25); }
+@keyframes flash { 0% { opacity: .92 } 55% { opacity: .85 } 100% { opacity: 0 } }
+
+@media (prefers-reduced-motion: reduce) { *, *::before, *::after { animation: none !important; transition: none !important; } .scan-flash { opacity: .85; } }
 
 /* ---------- pass carousel ---------- */
 .carousel { display: flex; overflow-x: auto; scroll-snap-type: x mandatory; scrollbar-width: none; margin-top: 16px; overscroll-behavior-x: contain; }
