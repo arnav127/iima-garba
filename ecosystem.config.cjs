@@ -24,6 +24,7 @@ function readEnv(file) {
 
 const env = readEnv(path.join(root, '.env'));
 const port = env.PORT || '8090';
+const host = env.HOST || '127.0.0.1'; // 0.0.0.0 when Apache runs on another machine
 const dataDir = path.resolve(root, env.DATA_DIR || './data');
 
 module.exports = {
@@ -33,7 +34,7 @@ module.exports = {
       cwd: root,
       script: path.join(root, 'backend/garba-server'),
       interpreter: 'none', // a compiled Go binary, not a Node script
-      args: ['serve', '--http', `127.0.0.1:${port}`, '--dir', dataDir, '--publicDir', path.join(root, 'backend/pb_public')],
+      args: ['serve', '--http', `${host}:${port}`, '--dir', dataDir, '--publicDir', path.join(root, 'backend/pb_public')],
       env: { ...env, NODE_ENV: 'production' },
       autorestart: true,
       restart_delay: 2000,
