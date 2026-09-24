@@ -1,25 +1,98 @@
-# CODING AGENTS: READ THIS FIRST
+# Garba Night passes · IIM Ahmedabad
 
-This is a **handoff bundle** from Claude Design (claude.ai/design).
+Pass distribution and gate entry for Cultcomm's Garba Night. Mobile first, in the Kutch design (2b) from `design/`.
 
-A user mocked up designs in HTML/CSS/JS using an AI design tool, then exported this bundle so a coding agent can implement the designs for real.
+- **IIMA students and staff** sign in (Google or an email code), see their own entry QR, and send passes to friends up to their group's quota.
+- **Friends** get a claim link (by email, or shared on WhatsApp for phone numbers), claim the pass in their name and show the QR. Friends sent a pass by email can also sign in with that email.
+- **Exchange guests** (pass exchange with other colleges) are added by Cultcomm and get their own pass.
+- **Volunteers** scan QRs at the gate. Every pass gets in once; a second scan shows "Already used" with the gate and time.
+- **Cultcomm admins** get a live dashboard (entries by gate, latest entries), search every pass, revoke or undo an entry, import the list from CSV, set quotas and event details, and export everything as CSV.
 
-## What you should do — IMPORTANT
+## How it's built
 
-**Read the chat transcripts first.** There are 1 chat transcript(s) in `chats/`. The transcripts show the full back-and-forth between the user and the design assistant — they tell you **what the user actually wants** and **where they landed** after iterating. Don't skip them. The final HTML files are the output, but the chat is where the intent lives.
+| Part | Tech | Where |
+| --- | --- | --- |
+| Backend | [PocketBase](https://pocketbase.io) v0.40 as a Go framework: SQLite, auth (Google OAuth2 + email OTP), realtime, admin UI at `/_/`, plus custom routes under `/api/garba/*` | `backend/` |
+| Web app | Preact + Vite, ~30 KB gzipped on first load; the scanner and dashboard load only for Cultcomm. Self-hosted fonts, service worker for weak venue Wi-Fi | `web/` |
+| API types | Shared TypeScript shapes of the Go responses | `shared/types.ts` |
+| Design handoff | The Claude Design mockups and chat | `design/` |
 
-**Read `project/Garba Passes v2.dc.html` in full.** The user had this file open when they triggered the handoff, so it's almost certainly the primary design they want built. Read it top to bottom — don't skim. Then **follow its imports**: open every file it pulls in (shared components, CSS, scripts) so you understand how the pieces fit together before you start implementing.
+Everything runs as **one binary** that serves both the API and the web app, with its data in one folder (`pb_data`).
 
-**If anything is ambiguous, ask the user to confirm before you start implementing.** It's much cheaper to clarify scope up front than to build the wrong thing.
+## Run it locally
 
-## About the design files
+Needs Go ≥ 1.24 (it fetches a newer toolchain automatically) and Node ≥ 20.
 
-The design medium is **HTML/CSS/JS** — these are prototypes, not production code. Your job is to **recreate them pixel-perfectly** in whatever technology makes sense for the target codebase (React, Vue, native, whatever fits). Match the visual output; don't copy the prototype's internal structure unless it happens to fit.
+```sh
+npm install
+npm run build          # web app -> backend/pb_public
+npm run seed           # demo people and passes from the mockups
+npm run backend        # http://127.0.0.1:8090
+```
 
-**Don't render these files in a browser or take screenshots unless the user asks you to.** Everything you need — dimensions, colors, layout rules — is spelled out in the source. Read the HTML and CSS directly; a screenshot won't tell you anything they don't.
+Without SMTP, sign-in codes and emails are printed in the server log. Demo accounts:
+`p25aarav@iima.ac.in` (student), `ishaan.m@spjimr.org` (exchange guest), `p24meera@iima.ac.in` (volunteer), `cultcomm@iima.ac.in` (admin).
 
-## Bundle contents
+For frontend work, run `npm run backend` and `npm run dev` together: Vite on :5173 proxies `/api` to PocketBase.
 
-- `README.md` — this file
-- `chats/` — conversation transcripts (read these!)
-- `project/` — the `Garba passes for IIMA` project files (HTML prototypes, assets, components)
+Tests: `npm run backend:test` (import, quotas, claim, revoke, scanning, including 20 parallel scans of one pass letting it in exactly once). `npm run typecheck` for the web app.
+
+## Deploy on a campus server (recommended)
+
+```sh
+npm ci && npm run build && npm run backend:build        # produces backend/garba-server and backend/pb_public
+# copy both to the server:
+sudo mkdir -p /opt/garba && sudo cp -r backend/garba-server backend/pb_public /opt/garba/
+sudo useradd --system garba && sudo chown -R garba:garba /opt/garba
+sudo cp deploy/garba.env.example /opt/garba/garba.env   # fill it in
+sudo cp deploy/garba.service /etc/systemd/system/ && sudo systemctl enable --now garba
+```
+
+- Cross-compile from a laptop with `GOOS=linux GOARCH=amd64 npm run backend:build`.
+- HTTPS: if the server has a public DNS name, change `ExecStart` to `serve garba.iima.ac.in` and PocketBase gets a Let's Encrypt certificate itself (ports 80/443). Or put it behind the campus reverse proxy. Camera scanning needs HTTPS.
+- Create a superuser for the PocketBase dashboard: `./garba-server superuser upsert you@iima.ac.in 'a-long-password' --dir /opt/garba/pb_data`.
+- Backups: the whole state is `/opt/garba/pb_data`. PocketBase can also schedule backups from the dashboard (Settings → Backups).
+- Import the list from the admin screen (People → Import), or on the server: `./garba-server import people.csv --dir /opt/garba/pb_data`.
+
+## Or: web app on Vercel, backend on campus
+
+The web app is a static build, so it can be hosted on Vercel while PocketBase runs on campus. The campus server still needs a public HTTPS URL.
+
+1. Import `arnav127/iima-garba` in Vercel. `vercel.json` already sets the build (`npm run build`, output `backend/pb_public`).
+2. In Vercel → Settings → Environment Variables set `VITE_PB_URL=https://<your-campus-server>`.
+3. On the server set `APP_URL=https://<your-vercel-domain>` so claim links point to the Vercel app, and add `https://<your-vercel-domain>/auth/callback` as a Google redirect URI.
+
+## Configuration
+
+All settings are environment variables (see `deploy/garba.env.example`). They're applied on every start; anything left empty keeps what's set in the PocketBase dashboard.
+
+| Variable | What it does |
+| --- | --- |
+| `APP_URL` | Public URL of the web app, used in claim links and emails |
+| `ADMIN_EMAILS` | Comma-separated emails that are always Cultcomm admins (created if missing) |
+| `GOOGLE_CLIENT_ID`, `GOOGLE_CLIENT_SECRET` | Google sign-in. Redirect URI: `<APP_URL>/auth/callback` |
+| `SMTP_HOST`, `SMTP_PORT`, `SMTP_USERNAME`, `SMTP_PASSWORD`, `SMTP_TLS` | Email for sign-in codes and pass emails |
+| `MAIL_FROM_ADDRESS`, `MAIL_FROM_NAME` | Sender |
+| `VITE_PB_URL` (build time) | Only when the web app is hosted separately from PocketBase |
+
+Event details (date, venue, gates) and quotas per group are edited in the app: Admin → Settings.
+
+## The people list (CSV)
+
+```csv
+email,name,group,college,role
+p25aarav@iima.ac.in,Aarav Shah,pgp1,,
+aarav.shah@gmail.com,Aarav Shah,pgp1,,
+p24meera@iima.ac.in,Meera Iyer,pgp2,,volunteer
+ishaan.m@spjimr.org,Ishaan Mehta,exchange,SPJIMR Mumbai,
+```
+
+- `group`: `pgp1`, `pgp2`, `pgpx`, `phd`, `faculty`, `staff`, `exchange` (exchange rows need `college`).
+- `role` (optional): `volunteer` or `admin`.
+- Sign-in matches on email, so list the address people will sign in with: their Gmail or their @iima.ac.in Google account. Re-importing updates people; nobody gets a second pass.
+
+## How entry works
+
+Each pass has a random secret; the QR holds `GRB1:<secret>`, and only the pass holder ever receives it. Volunteers scan it (or type the printed `GRB-0417` code if a phone screen is cracked). The check-and-mark runs in one transaction, so a pass can only get in once even when two gates scan it at the same moment. Admins can undo an entry scanned by mistake.
+
+Placeholders to confirm with Cultcomm: the date (Sat 17 Oct), venue (LKP), start time (8 PM), number of gates (2), and quotas (PGP1/PGP2/Faculty 4, PGPX/PhD/Staff 2). All of these can be changed in Admin → Settings.

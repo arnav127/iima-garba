@@ -1,0 +1,9 @@
+{
+  "name": "Garba Night · IIMA",
+  "short_name": "Garba Night",
+  "start_url": "/",
+  "display": "standalone",
+  "background_color": "#f6f0e4",
+  "theme_color": "#f6f0e4",
+  "icons": [{ "src": "/cultcomm.jpg", "sizes": "447x447", "type": "image/jpeg" }]
+}

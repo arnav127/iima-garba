@@ -1,0 +1,23 @@
+# systemd unit for the campus server.
+#   sudo cp deploy/garba.service /etc/systemd/system/ && sudo systemctl enable --now garba
+# With a public DNS name, replace --http with the domain for automatic HTTPS:
+#   ExecStart=/opt/garba/garba-server serve garba.iima.ac.in --dir /opt/garba/pb_data
+[Unit]
+Description=Garba Night passes (PocketBase)
+After=network-online.target
+Wants=network-online.target
+
+[Service]
+Type=simple
+User=garba
+Group=garba
+WorkingDirectory=/opt/garba
+EnvironmentFile=/opt/garba/garba.env
+ExecStart=/opt/garba/garba-server serve --http 0.0.0.0:8090 --dir /opt/garba/pb_data
+Restart=always
+RestartSec=3
+LimitNOFILE=65536
+AmbientCapabilities=CAP_NET_BIND_SERVICE
+
+[Install]
+WantedBy=multi-user.target
