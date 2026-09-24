@@ -3,7 +3,7 @@ import {
   GROUP_LABEL, MEMBER_GROUPS, TONES, toneOfKind,
   type AdminPerson, type AdminStats, type Group, type ImportResult, type MeResponse, type PassView, type Role, type Settings,
 } from '../../../shared/types.ts';
-import { Btn, ConfirmBtn, Logo, Mirrors, Rainbow, Sheet, Spinner, Top } from '../components/ui.tsx';
+import { Btn, ConfirmBtn, Icon, Logo, Mirrors, Rainbow, Sheet, Spinner, Top } from '../components/ui.tsx';
 import { api, initials, istTime, navigate, onPassesChange, pb, pbCall, storage, toast, toastError } from '../lib.ts';
 import { AccountSheet } from './Home.tsx';
 
@@ -109,8 +109,8 @@ function Live({ me }: { me: MeResponse }) {
 
       <div style={{ margin: '22px 20px 0', display: 'flex', flexDirection: 'column', gap: 12 }}>
         <Btn onClick={() => navigate('/scan')}>Open gate scanner</Btn>
-        {me.pass && <Btn variant="ghost" icon="▣" onClick={() => navigate('/pass')}>Show my pass QR</Btn>}
-        <Btn variant="ghost" icon="↓" onClick={() => download('/api/garba/admin/export.csv', `garba-passes-${new Date().toISOString().slice(0, 10)}.csv`)}>Download all passes (CSV)</Btn>
+        {me.pass && <Btn variant="ghost" icon="qr" onClick={() => navigate('/pass')}>Show my pass QR</Btn>}
+        <Btn variant="ghost" icon="download" onClick={() => download('/api/garba/admin/export.csv', `garba-passes-${new Date().toISOString().slice(0, 10)}.csv`)}>Download all passes (CSV)</Btn>
       </div>
       </div>
 
@@ -226,9 +226,9 @@ function PassList({ filter: fixed }: { filter?: string }) {
             <span class="note">{[sel.holderEmail, sel.college, sel.issuerName && `Guest of ${sel.issuerName}`].filter(Boolean).join(' · ') || 'No email · shown from host’s phone or link'}</span>
             {sel.enteredAt && <span class="note" style={{ color: 'var(--ok-text)', fontWeight: 600 }}>Scanned at {istTime(sel.enteredAt)} · Gate {sel.enteredGate}</span>}
           </div>
-          {sel.enteredAt && <ConfirmBtn variant="ghost" disabled={busy} icon="↩" confirmLabel="Tap again to undo · can be scanned again" onConfirm={() => act('undo-entry', 'Entry undone. The pass can be scanned again.')}>Undo entry (scanned by mistake)</ConfirmBtn>}
-          {!sel.enteredAt && sel.status !== 'REVOKED' && <ConfirmBtn variant="ghost" disabled={busy} icon="✕" confirmLabel="Tap again to cancel this pass" onConfirm={() => act('revoke', 'Pass cancelled')}>Cancel pass</ConfirmBtn>}
-          {sel.status === 'REVOKED' && <Btn disabled={busy} icon="↺" onClick={() => act('restore', 'Pass restored')}>Restore pass</Btn>}
+          {sel.enteredAt && <ConfirmBtn variant="ghost" disabled={busy} icon="undo" confirmLabel="Tap again to undo · can be scanned again" onConfirm={() => act('undo-entry', 'Entry undone. The pass can be scanned again.')}>Undo entry (scanned by mistake)</ConfirmBtn>}
+          {!sel.enteredAt && sel.status !== 'REVOKED' && <ConfirmBtn variant="ghost" disabled={busy} icon="x" confirmLabel="Tap again to cancel this pass" onConfirm={() => act('revoke', 'Pass cancelled')}>Cancel pass</ConfirmBtn>}
+          {sel.status === 'REVOKED' && <Btn disabled={busy} icon="restore" onClick={() => act('restore', 'Pass restored')}>Restore pass</Btn>}
         </Sheet>
       )}
     </>
@@ -325,7 +325,7 @@ function People({ meId }: { meId: string }) {
               </div>
               <div style={{ display: 'flex', gap: 10 }}>
                 <Btn disabled={busy || (limit === sel.limit && sel.hasLimit)} onClick={() => update({ limit }, `Limit set to ${limit}`)} style={{ flex: 1 }}>Save limit</Btn>
-                {sel.hasLimit && <Btn variant="ghost" disabled={busy} icon="↺" onClick={() => update({ limit: -1 }, 'Back to the group default')} style={{ flex: 1 }}>Default</Btn>}
+                {sel.hasLimit && <Btn variant="ghost" disabled={busy} icon="restore" onClick={() => update({ limit: -1 }, 'Back to the group default')} style={{ flex: 1 }}>Default</Btn>}
               </div>
               {limit < sel.guests && <span class="hint">They've already added {sel.guests}. Lowering the limit doesn't remove anyone.</span>}
 
@@ -380,7 +380,7 @@ function Exchange() {
           Guests with an email sign in with Google; everyone gets a pass link you can share.
         </span>
         <label class="btn ghost small" style={{ cursor: 'pointer' }}>
-          <span style={{ overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{file ? file.name : 'Choose Excel or CSV file'}</span><span aria-hidden="true">↑</span>
+          <span style={{ overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{file ? file.name : 'Choose Excel or CSV file'}</span><Icon name="upload" />
           <input type="file" accept=".xlsx,.csv,application/vnd.openxmlformats-officedocument.spreadsheetml.sheet,text/csv" style={{ display: 'none' }} onChange={(e) => setFile(e.currentTarget.files?.[0] ?? null)} />
         </label>
         <Btn disabled={busy || !file} onClick={upload}>{busy ? 'Uploading…' : 'Upload'}</Btn>
@@ -390,7 +390,7 @@ function Exchange() {
             {result.errors.slice(0, 20).map((er) => <div key={er.line} class="error">Row {er.line}: {er.reason}</div>)}
           </div>
         )}
-        <Btn variant="ghost" icon="↓" onClick={() => download('/api/garba/admin/exchange-links.csv', 'exchange-pass-links.csv')}>Download pass links (CSV)</Btn>
+        <Btn variant="ghost" icon="download" onClick={() => download('/api/garba/admin/exchange-links.csv', 'exchange-pass-links.csv')}>Download pass links (CSV)</Btn>
       </div>
       </div>
       <div class="dash-col">

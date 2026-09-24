@@ -28,10 +28,36 @@ export function Back({ onClick, label, light }: { onClick: () => void; label?: s
   );
 }
 
-export function Btn(props: { children: ComponentChildren; onClick?: () => void; disabled?: boolean; variant?: string; icon?: string; type?: 'submit' | 'button'; style?: JSX.CSSProperties }) {
+/**
+ * One-colour line icons drawn in the text colour. Unicode arrows like ↩ and ↗ turn into colour
+ * emoji on iPhones, so buttons use these instead.
+ */
+const ICONS = {
+  arrow: 'M5 12h14M13 6l6 6-6 6',
+  undo: 'M9 14 4 9l5-5M4 9h10.5a5.5 5.5 0 0 1 0 11H11',
+  logout: 'M9 20H6a2 2 0 0 1-2-2V6a2 2 0 0 1 2-2h3M16 17l5-5-5-5M21 12H9',
+  x: 'M6 6l12 12M18 6 6 18',
+  restore: 'M3.5 12a8.5 8.5 0 1 0 2.5-6M3.5 3.5V9H9',
+  download: 'M12 4v11M7 10l5 5 5-5M5 20h14',
+  upload: 'M12 20V9M7 14l5-5 5 5M5 4h14',
+  share: 'M14 4h6v6M20 4l-9 9M18 14v4a2 2 0 0 1-2 2H6a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h4',
+  check: 'M5 12.5l4.5 4.5L19 7',
+  plus: 'M12 5v14M5 12h14',
+  qr: 'M4 4h6v6H4zM14 4h6v6h-6zM4 14h6v6H4zM14 14h2.5M14 17.5v2.5M17.5 17.5H20M20 14v.01M17 20h.01',
+  alert: 'M12 6v8M12 18v.01',
+} as const;
+export type IconName = keyof typeof ICONS;
+
+export const Icon = ({ name, size = 20 }: { name: IconName; size?: number }) => (
+  <svg width={size} height={size} viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.25" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true" style={{ flex: 'none', display: 'block' }}>
+    <path d={ICONS[name]} />
+  </svg>
+);
+
+export function Btn(props: { children: ComponentChildren; onClick?: () => void; disabled?: boolean; variant?: string; icon?: IconName; type?: 'submit' | 'button'; style?: JSX.CSSProperties }) {
   return (
     <button type={props.type ?? 'button'} class={`btn ${props.variant ?? ''}`} onClick={props.onClick} disabled={props.disabled} style={props.style}>
-      <span>{props.children}</span><span aria-hidden="true">{props.icon ?? '→'}</span>
+      <span>{props.children}</span><Icon name={props.icon ?? 'arrow'} />
     </button>
   );
 }
@@ -40,7 +66,7 @@ export function Btn(props: { children: ComponentChildren; onClick?: () => void; 
  * A button that asks "Tap again to …" before acting. Used instead of window.confirm(), which many
  * phone and in-app browsers (WhatsApp, Instagram, installed PWAs) block silently, so the tap did nothing.
  */
-export function ConfirmBtn(props: { children: ComponentChildren; confirmLabel: string; onConfirm: () => void; disabled?: boolean; variant?: string; icon?: string }) {
+export function ConfirmBtn(props: { children: ComponentChildren; confirmLabel: string; onConfirm: () => void; disabled?: boolean; variant?: string; icon?: IconName }) {
   const [armed, setArmed] = useState(false);
   useEffect(() => {
     if (!armed) return;
@@ -48,7 +74,7 @@ export function ConfirmBtn(props: { children: ComponentChildren; confirmLabel: s
     return () => clearTimeout(t);
   }, [armed]);
   return (
-    <Btn variant={armed ? 'danger' : props.variant} disabled={props.disabled} icon={armed ? '!' : props.icon}
+    <Btn variant={armed ? 'danger' : props.variant} disabled={props.disabled} icon={armed ? 'alert' : props.icon}
       onClick={() => { if (armed) { setArmed(false); props.onConfirm(); } else setArmed(true); }}>
       {armed ? props.confirmLabel : props.children}
     </Btn>

@@ -209,7 +209,7 @@ export function Scan({ me }: { me: MeResponse }) {
             </form>
           )}
           <div style={{ marginTop: 14, display: 'flex', flexDirection: 'column', gap: 12 }}>
-            {result?.outcome === 'check' && <Btn variant="yellow" disabled={busy} icon="✓" onClick={admit}>ID checked · Admit {result.name.split(' ')[0]}</Btn>}
+            {result?.outcome === 'check' && <Btn variant="yellow" disabled={busy} icon="check" onClick={admit}>ID checked · Admit {result.name.split(' ')[0]}</Btn>}
             <Btn onClick={() => { setResult(null); setCode(''); last.current.key = ''; }}>Scan next</Btn>
           </div>
           {!manual && (

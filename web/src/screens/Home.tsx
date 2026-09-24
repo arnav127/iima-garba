@@ -10,11 +10,11 @@ export function AccountSheet({ me, onClose }: { me: MeResponse; onClose: () => v
         <span style={{ font: '800 26px/1 var(--fd)', fontStretch: '75%' }}>{me.user.name.toUpperCase()}</span>
         <span class="hint" style={{ fontSize: 13 }}>{me.user.email} · {GROUP_LABEL[me.user.group]}</span>
       </div>
-      {me.pass && me.user.role !== 'member' && <Btn icon="▣" onClick={() => { onClose(); navigate('/pass'); }}>Show my pass QR</Btn>}
+      {me.pass && me.user.role !== 'member' && <Btn icon="qr" onClick={() => { onClose(); navigate('/pass'); }}>Show my pass QR</Btn>}
       {me.pass && appPath() !== '/home' && <Btn variant="ghost" onClick={() => { onClose(); navigate('/home'); }}>My passes</Btn>}
       {(me.user.role === 'volunteer' || me.user.role === 'admin') && appPath() !== '/scan' && <Btn variant="ghost" onClick={() => { onClose(); navigate('/scan'); }}>Gate scanner</Btn>}
       {me.user.role === 'admin' && appPath() !== '/admin' && <Btn variant="ghost" onClick={() => { onClose(); navigate('/admin'); }}>Cultcomm dashboard</Btn>}
-      <Btn icon="↩" onClick={() => { onClose(); signOut(); navigate('/', true); }}>Sign out</Btn>
+      <Btn icon="logout" onClick={() => { onClose(); signOut(); navigate('/', true); }}>Sign out</Btn>
     </Sheet>
   );
 }
@@ -90,7 +90,7 @@ export function Home({ me }: { me: MeResponse }) {
             </div>
           </div>
           <div style={{ margin: '12px 20px 0' }}>
-            <Btn variant="yellow" icon="+" disabled={remaining === 0} onClick={() => navigate('/add')}>
+            <Btn variant="yellow" icon="plus" disabled={remaining === 0} onClick={() => navigate('/add')}>
               {remaining > 0 ? 'Add a friend or family member' : 'All guest passes used'}
             </Btn>
           </div>
@@ -130,9 +130,9 @@ export function Home({ me }: { me: MeResponse }) {
             </span>
           </div>
           {!sheet.pass.enteredAt && <Btn onClick={() => navigate(`/pass?i=${sheet.index}`)}>Show their QR</Btn>}
-          {!sheet.pass.enteredAt && <Btn variant="ghost" icon="↗" onClick={() => shareLink(sheet.pass)}>Share pass link (WhatsApp)</Btn>}
-          {!sheet.pass.enteredAt && <ConfirmBtn variant="ghost" disabled={busy} icon="✕" confirmLabel="Tap again · their QR and link stop working" onConfirm={() => remove(sheet.pass)}>Remove guest</ConfirmBtn>}
-          {sheet.pass.enteredAt && <Btn variant="ghost" icon="✓" onClick={() => setSheet(null)}>Done</Btn>}
+          {!sheet.pass.enteredAt && <Btn variant="ghost" icon="share" onClick={() => shareLink(sheet.pass)}>Share pass link (WhatsApp)</Btn>}
+          {!sheet.pass.enteredAt && <ConfirmBtn variant="ghost" disabled={busy} icon="x" confirmLabel="Tap again · their QR and link stop working" onConfirm={() => remove(sheet.pass)}>Remove guest</ConfirmBtn>}
+          {sheet.pass.enteredAt && <Btn variant="ghost" icon="check" onClick={() => setSheet(null)}>Done</Btn>}
         </Sheet>
       )}
       {account && <AccountSheet me={me} onClose={() => setAccount(false)} />}

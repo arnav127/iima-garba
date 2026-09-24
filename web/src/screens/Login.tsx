@@ -1,5 +1,5 @@
 import { useEffect, useState } from 'preact/hooks';
-import { Back, Top, Zigzag } from '../components/ui.tsx';
+import { Back, Icon, Top, Zigzag } from '../components/ui.tsx';
 import { enabledProviders, navigate, startSignIn, storage, type Provider } from '../lib.ts';
 
 const GoogleG = () => (
@@ -48,12 +48,12 @@ export function Login() {
       <div style={{ margin: '30px 22px 0', display: 'flex', flexDirection: 'column', gap: 14 }}>
         <button type="button" class="btn" onClick={() => go('google')} disabled={!!busy}>
           <span style={{ display: 'flex', alignItems: 'center', gap: 12 }}><GoogleG />{busy === 'google' ? 'Opening Google…' : 'Continue with Google'}</span>
-          <span aria-hidden="true">→</span>
+          <Icon name="arrow" />
         </button>
         {providers.includes('microsoft') && (
           <button type="button" class="btn ghost" onClick={() => go('microsoft')} disabled={!!busy}>
             <span style={{ display: 'flex', alignItems: 'center', gap: 12 }}><MicrosoftM />{busy === 'microsoft' ? 'Opening Microsoft…' : 'Continue with Microsoft'}</span>
-            <span aria-hidden="true">→</span>
+            <Icon name="arrow" />
           </button>
         )}
         {error && <div class="error" role="alert">{error}</div>}
@@ -70,7 +70,7 @@ export function Login() {
             <div class="note" style={{ fontSize: 14 }}><b style={{ color: 'var(--ink)' }}>{t}</b><br />{d}</div>
           </div>
         ))}
-        {linkToken && <button class="btn ghost small" onClick={() => navigate(`/p/${linkToken}`)}><span>Open my saved pass link</span><span>→</span></button>}
+        {linkToken && <button class="btn ghost small" onClick={() => navigate(`/p/${linkToken}`)}><span>Open my saved pass link</span><Icon name="arrow" /></button>}
       </div>
 
       <div style={{ marginTop: 'auto', paddingTop: 36 }}>
