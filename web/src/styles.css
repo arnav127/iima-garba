@@ -129,3 +129,17 @@ textarea.input { height: auto; min-height: 120px; padding: 12px 14px; font: 400 
 @keyframes rot { to { transform: rotate(360deg) } }
 
 @media (prefers-reduced-motion: reduce) { *, *::before, *::after { animation: none !important; transition: none !important; } }
+
+/* ---------- pass carousel ---------- */
+.carousel { display: flex; overflow-x: auto; scroll-snap-type: x mandatory; scrollbar-width: none; margin-top: 16px; overscroll-behavior-x: contain; }
+.carousel::-webkit-scrollbar { display: none; }
+.slide { flex: 0 0 100%; scroll-snap-align: center; scroll-snap-stop: always; padding: 0 22px; box-sizing: border-box; }
+/* A moving sheen on live QRs: volunteers can tell a live pass from a screenshot at a glance. */
+.qr-live { overflow: hidden; }
+.qr-live::after {
+  content: ''; position: absolute; inset: 0; border-radius: 15px; pointer-events: none;
+  background: linear-gradient(105deg, transparent 40%, rgba(247, 210, 58, .28) 50%, transparent 60%) no-repeat;
+  background-size: 250% 100%; animation: sheen 2.4s linear infinite;
+}
+@keyframes sheen { from { background-position: 150% 0 } to { background-position: -50% 0 } }
+.tone-dot { width: 10px; height: 10px; border-radius: 50%; flex: none; box-shadow: 0 0 0 2px var(--ink); }

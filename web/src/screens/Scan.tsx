@@ -1,17 +1,18 @@
 import { useEffect, useRef, useState } from 'preact/hooks';
-import type { MeResponse, ScanResult } from '../../../shared/types.ts';
+import { TONES, type MeResponse, type ScanResult } from '../../../shared/types.ts';
 import { Btn, Logo } from '../components/ui.tsx';
-import { api, onPassesChange, storage } from '../lib.ts';
+import { api, storage } from '../lib.ts';
 import { AccountSheet } from './Home.tsx';
 
-const LOOK = {
+const LOOK: Record<ScanResult['outcome'] | 'idle', { bg: string; icon: string }> = {
   allowed: { bg: 'var(--ok)', icon: '✓' },
   used: { bg: 'var(--bad)', icon: '✕' },
   revoked: { bg: 'var(--bad)', icon: '✕' },
   invalid: { bg: 'var(--bad)', icon: '✕' },
-  unclaimed: { bg: 'var(--orange)', icon: '!' },
+  expired: { bg: 'var(--bad)', icon: '⟳' },
+  check: { bg: 'var(--orange)', icon: '?' },
   idle: { bg: 'var(--yellow)', icon: '◎' },
-} as const;
+};
 
 type CamState = 'starting' | 'on' | 'blocked' | 'none';
 
@@ -26,26 +27,42 @@ export function Scan({ me }: { me: MeResponse }) {
   const [busy, setBusy] = useState(false);
   const [account, setAccount] = useState(false);
   const gateRef = useRef(gate);
-  const last = useRef({ payload: '', at: 0, busy: false });
+  const last = useRef({ key: '', at: 0, busy: false });
   gateRef.current = gate;
 
+  function show(r: ScanResult) {
+    setResult(r);
+    setCount(r.entered);
+    navigator.vibrate?.(r.outcome === 'allowed' ? 80 : r.outcome === 'check' ? [60, 60, 60] : [120, 80, 120]);
+  }
+
   async function check(payload: string) {
+    // The QR rotates, so ignore the same pass (not the same text) for a few seconds after reading it.
+    const key = payload.startsWith('G2.') ? payload.split('.')[1] : payload.toUpperCase();
     const l = last.current;
-    if (l.busy || (payload === l.payload && Date.now() - l.at < 3000)) return;
-    l.busy = true; l.payload = payload; l.at = Date.now();
+    if (l.busy || (key === l.key && Date.now() - l.at < 4000)) return;
+    l.busy = true; l.key = key; l.at = Date.now();
     setBusy(true);
     try {
-      const r = await api<ScanResult>('/scan', { body: { payload, gate: gateRef.current } });
-      setResult(r);
-      setCount(r.entered);
-      navigator.vibrate?.(r.outcome === 'allowed' ? 80 : [120, 80, 120]);
+      show(await api<ScanResult>('/scan', { body: { payload, gate: gateRef.current } }));
     } catch (e) {
-      setResult({ outcome: 'invalid', title: 'Could not check', sub: (e as Error).message, name: '—', meta: 'Try again', entered: count ?? 0 });
-      l.payload = '';
+      setResult({ outcome: 'invalid', title: 'Could not check', sub: (e as Error).message, name: '—', meta: 'Try again', tone: '', typeLabel: '', entered: count ?? 0 });
+      l.key = '';
     } finally {
       l.busy = false;
       setBusy(false);
     }
+  }
+
+  async function admit() {
+    if (!result?.passId) return;
+    setBusy(true);
+    try {
+      show(await api<ScanResult>('/scan/admit', { body: { passId: result.passId, gate: gateRef.current } }));
+      setCode('');
+    } catch (e) {
+      setResult({ ...result, outcome: 'invalid', title: 'Could not admit', sub: (e as Error).message });
+    } finally { setBusy(false); }
   }
 
   // Camera + QR decoding (loaded only on this screen).
@@ -65,15 +82,12 @@ export function Scan({ me }: { me: MeResponse }) {
     return () => { dead = true; scanner?.stop(); scanner?.destroy(); };
   }, []);
 
-  // Live entry count across all gates.
+  // Entry count across all gates.
   useEffect(() => {
-    let t: ReturnType<typeof setTimeout> | undefined;
     const load = () => api<{ entered: number }>('/scan/count').then((r) => setCount(r.entered)).catch(() => {});
-    const debounced = () => { clearTimeout(t); t = setTimeout(load, 300); };
     load();
-    const unsub = onPassesChange(debounced);
     const poll = setInterval(load, 10_000);
-    return () => { unsub(); clearInterval(poll); clearTimeout(t); };
+    return () => clearInterval(poll);
   }, []);
 
   const nextGate = () => {
@@ -83,6 +97,7 @@ export function Scan({ me }: { me: MeResponse }) {
   };
 
   const look = LOOK[result?.outcome ?? 'idle'];
+  const tone = result?.tone ? TONES[result.tone] : null;
   const camMsg = { starting: 'Starting camera…', on: '', blocked: 'Camera blocked. Allow camera access for this site, or type the pass code.', none: 'No camera found. Type the pass code instead.' }[cam];
 
   return (
@@ -104,28 +119,32 @@ export function Scan({ me }: { me: MeResponse }) {
 
       <div style={{ position: 'absolute', left: 0, right: 0, bottom: 0, background: 'var(--ivory)', borderRadius: '28px 28px 0 0', overflow: 'hidden' }}>
         <div style={{ height: 14, background: `repeating-linear-gradient(90deg,${look.bg} 0 12px,var(--ink) 12px 16px)` }} />
-        <div style={{ padding: '18px 22px calc(34px + var(--safe-b))' }}>
+        <div style={{ padding: '18px 22px calc(30px + var(--safe-b))' }}>
           <div style={{ display: 'flex', alignItems: 'center', gap: 14 }} aria-live="polite">
             <div style={{ width: 56, height: 56, flex: 'none', borderRadius: 14, background: look.bg, color: result ? '#fff' : 'var(--ink)', display: 'grid', placeItems: 'center', font: '800 28px var(--fd)', border: '2px solid var(--ink)' }}>{busy ? '…' : look.icon}</div>
             <div style={{ display: 'flex', flexDirection: 'column', minWidth: 0 }}>
               <span style={{ font: '800 30px/1 var(--fd)', fontStretch: '75%' }}>{(result?.title ?? 'Ready to scan').toUpperCase()}</span>
-              <span style={{ font: "500 14px var(--fb)", color: 'var(--body)' }}>{result?.sub ?? 'Point the camera at the pass QR'}</span>
+              <span style={{ font: "500 14px var(--fb)", color: 'var(--body)' }}>{result?.sub ?? 'Point the camera at the live pass QR'}</span>
             </div>
           </div>
           {result && (
-            <div style={{ marginTop: 16, borderTop: '2px solid var(--ink)', paddingTop: 12, display: 'flex', flexDirection: 'column' }}>
-              <span style={{ font: "700 18px var(--fb)" }}>{result.name}</span>
-              <span style={{ font: "400 13px var(--fb)", color: 'var(--muted)' }}>{result.meta}</span>
+            <div style={{ marginTop: 16, borderTop: '2px solid var(--ink)', paddingTop: 12, display: 'flex', alignItems: 'center', gap: 12 }}>
+              <div style={{ flex: 1, display: 'flex', flexDirection: 'column', minWidth: 0 }}>
+                <span style={{ font: "700 18px var(--fb)" }}>{result.name}</span>
+                <span style={{ font: "400 13px var(--fb)", color: 'var(--muted)' }}>{result.meta}</span>
+              </div>
+              {tone && <span style={{ padding: '6px 10px', borderRadius: 10, background: tone.color, color: '#fff', font: '800 14px var(--fd)', whiteSpace: 'nowrap' }}>{result.typeLabel.toUpperCase()}</span>}
             </div>
           )}
-          {manual && (
-            <form style={{ marginTop: 14, display: 'flex', gap: 8 }} onSubmit={(e) => { e.preventDefault(); last.current.payload = ''; check(code.trim()); }}>
+          {manual && result?.outcome !== 'check' && (
+            <form style={{ marginTop: 14, display: 'flex', gap: 8 }} onSubmit={(e) => { e.preventDefault(); last.current.key = ''; check(code.trim()); }}>
               <input class="input" value={code} onInput={(e) => setCode(e.currentTarget.value.toUpperCase())} placeholder="GRB-0417" autoCapitalize="characters" spellcheck={false} style={{ flex: 1 }} autoFocus />
               <button class="btn small" style={{ width: 'auto' }} disabled={busy || code.trim().length < 5}>Check</button>
             </form>
           )}
-          <div style={{ marginTop: 14 }}>
-            <Btn onClick={() => { setResult(null); setCode(''); last.current.payload = ''; }}>Scan next</Btn>
+          <div style={{ marginTop: 14, display: 'flex', flexDirection: 'column', gap: 12 }}>
+            {result?.outcome === 'check' && <Btn variant="yellow" disabled={busy} icon="✓" onClick={admit}>ID checked · Admit {result.name.split(' ')[0]}</Btn>}
+            <Btn onClick={() => { setResult(null); setCode(''); last.current.key = ''; }}>Scan next</Btn>
           </div>
           {!manual && (
             <button onClick={() => setManual(true)} style={{ marginTop: 12, width: '100%', textAlign: 'center', font: "500 13px var(--fb)", color: 'var(--muted)', textDecoration: 'underline' }}>

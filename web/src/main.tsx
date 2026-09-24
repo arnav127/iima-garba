@@ -5,13 +5,12 @@ import { Spinner, Toast } from './components/ui.tsx';
 import { api, meStore, navigate, refreshMe, renewSession, routeStore, storage } from './lib.ts';
 import { homeFor } from './routes.ts';
 import { AuthCallback } from './screens/AuthCallback.tsx';
-import { Claim } from './screens/Claim.tsx';
-import { GuestHome } from './screens/GuestHome.tsx';
+import { GuestHome, PassLink } from './screens/GuestHome.tsx';
 import { Home } from './screens/Home.tsx';
 import { Landing } from './screens/Landing.tsx';
 import { Login } from './screens/Login.tsx';
 import { PassQr } from './screens/PassQr.tsx';
-import { Send } from './screens/Send.tsx';
+import { AddGuest } from './screens/AddGuest.tsx';
 // Fonts are self-hosted (no Google Fonts round trip on campus Wi-Fi); browsers fetch only the Latin/Gujarati subsets they need.
 import '@fontsource/anek-gujarati/700.css';
 import '@fontsource/anek-gujarati/800.css';
@@ -60,8 +59,8 @@ function App() {
   }, []);
 
   if (path === '/auth/callback') return <AuthCallback />;
-  const claim = path.match(/^\/claim\/([\w-]+)$/);
-  if (claim) return <Claim token={claim[1]} />;
+  const link = path.match(/^\/p\/([\w-]+)$/);
+  if (link) return <PassLink token={link[1]} />;
 
   if (!me) {
     if (path === '/login') return <Login />;
@@ -76,10 +75,14 @@ function App() {
     case '/home':
       if (isGuest(me) && me.pass) return <GuestHome me={me} />;
       return <Home me={me} />;
-    case '/send':
-      return isGuest(me) ? <Redirect to="/home" /> : <Send me={me} />;
-    case '/pass':
-      return me.pass ? <PassQr pass={me.pass} event={me.event} onBack={() => navigate('/home')} /> : <Redirect to="/home" />;
+    case '/add':
+      return isGuest(me) ? <Redirect to="/home" /> : <AddGuest me={me} />;
+    case '/pass': {
+      // Your own pass first, then everyone you added: swipe through them at the gate.
+      const passes = [me.pass, ...me.guests].filter((p) => p !== null);
+      const start = Number(new URLSearchParams(location.search).get('i')) || 0;
+      return passes.length ? <PassQr passes={passes} event={me.event} start={start} onBack={() => navigate('/home')} refresh={refreshMe} /> : <Redirect to="/home" />;
+    }
     case '/scan':
       return me.user.role === 'member' ? <Redirect to="/home" /> : <Scan me={me} />;
     case '/admin':

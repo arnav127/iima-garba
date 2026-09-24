@@ -1,17 +1,7 @@
 import { useState } from 'preact/hooks';
-import { GROUP_LABEL, GROUP_PLURAL, type MeResponse, type PassView } from '../../../shared/types.ts';
+import { GROUP_LABEL, TONES, type MeResponse, type PassView } from '../../../shared/types.ts';
 import { Btn, Logo, MiniQr, Mirrors, Rainbow, Sheet, Top } from '../components/ui.tsx';
-import { AVATAR_COLORS, api, initials, istTime, navigate, setMe, share, signOut, toast, toastError } from '../lib.ts';
-
-/** Set by the Send screen so Home opens the share sheet for the pass that was just sent. */
-export let justSent: { pass: PassView; claimUrl: string } | null = null;
-export const setJustSent = (v: typeof justSent) => { justSent = v; };
-
-function statusOf(p: PassView): { label: string; color: string } {
-  if (p.enteredAt) return { label: 'IN', color: 'var(--ok-text)' };
-  if (p.status === 'CLAIMED') return { label: 'CLAIMED', color: 'var(--ok-text)' };
-  return { label: 'SENT', color: 'var(--pink)' };
-}
+import { api, initials, istTime, navigate, setMe, share, signOut, toast, toastError } from '../lib.ts';
 
 export function AccountSheet({ me, onClose }: { me: MeResponse; onClose: () => void }) {
   return (
@@ -20,7 +10,7 @@ export function AccountSheet({ me, onClose }: { me: MeResponse; onClose: () => v
         <span style={{ font: '800 26px/1 var(--fd)', fontStretch: '75%' }}>{me.user.name.toUpperCase()}</span>
         <span class="hint" style={{ fontSize: 13 }}>{me.user.email} · {GROUP_LABEL[me.user.group]}</span>
       </div>
-      {me.pass && location.pathname !== '/home' && <Btn variant="ghost" onClick={() => { onClose(); navigate('/home'); }}>My pass</Btn>}
+      {me.pass && location.pathname !== '/home' && <Btn variant="ghost" onClick={() => { onClose(); navigate('/home'); }}>My passes</Btn>}
       {(me.user.role === 'volunteer' || me.user.role === 'admin') && location.pathname !== '/scan' && <Btn variant="ghost" onClick={() => { onClose(); navigate('/scan'); }}>Gate scanner</Btn>}
       {me.user.role === 'admin' && location.pathname !== '/admin' && <Btn variant="ghost" onClick={() => { onClose(); navigate('/admin'); }}>Cultcomm dashboard</Btn>}
       <Btn icon="↩" onClick={() => { onClose(); signOut(); navigate('/', true); }}>Sign out</Btn>
@@ -29,31 +19,28 @@ export function AccountSheet({ me, onClose }: { me: MeResponse; onClose: () => v
 }
 
 export function Home({ me }: { me: MeResponse }) {
-  const [sheet, setSheet] = useState<{ pass: PassView; claimUrl?: string } | null>(() => {
-    const j = justSent;
-    justSent = null;
-    return j;
-  });
+  const [sheet, setSheet] = useState<{ pass: PassView; index: number } | null>(null);
   const [account, setAccount] = useState(false);
   const [busy, setBusy] = useState(false);
-  const { user, pass, quota, remaining, sent } = me;
-  const canSend = remaining > 0;
-  const entered = pass?.enteredAt ? `● ENTERED · GATE ${pass.enteredGate} · ${istTime(pass.enteredAt)}` : '● YOUR PASS · READY';
+  const { user, pass, limit, remaining, guests } = me;
+  const tone = pass ? TONES[pass.tone] : TONES.student;
+  const status = pass?.enteredAt ? `● SCANNED · ${istTime(pass.enteredAt)} · GATE ${pass.enteredGate}` : '● YOUR PASS · READY';
+  const all = [pass, ...guests].filter(Boolean).length;
 
-  async function shareLink(p: PassView, url?: string) {
+  async function shareLink(p: PassView) {
     try {
-      const link = url ?? (await api<{ claimUrl: string }>(`/passes/${p.id}/link`)).claimUrl;
-      await share(link, `${user.name} sent you a pass to ${me.event.title} at IIM Ahmedabad (${me.event.dateLabel}). Claim it in your name:`);
+      const { link } = await api<{ link: string }>(`/guests/${p.id}/link`);
+      await share(link, `${p.holderName.split(' ')[0]}, here's your pass to ${me.event.title} at IIM Ahmedabad (${me.event.dateLabel}, ${me.event.venueShort}, ${me.event.timeLabel}). Open it at the gate:`);
     } catch (e) { toastError(e); }
   }
 
-  async function takeBack(p: PassView) {
-    if (!confirm(`Take back the pass sent to ${p.holderName}?`)) return;
+  async function remove(p: PassView) {
+    if (!confirm(`Remove ${p.holderName}'s pass? Their QR and link stop working.`)) return;
     setBusy(true);
     try {
-      setMe(await api<MeResponse>(`/passes/${p.id}/revoke`, { body: {} }));
+      setMe(await api<MeResponse>(`/guests/${p.id}/remove`, { body: {} }));
       setSheet(null);
-      toast('Pass taken back. You can send it to someone else.');
+      toast(`${p.holderName}'s pass removed. You can add someone else.`);
     } catch (e) { toastError(e); } finally { setBusy(false); }
   }
 
@@ -73,67 +60,79 @@ export function Home({ me }: { me: MeResponse }) {
           <Rainbow h={10} />
           <div style={{ padding: '16px 18px', display: 'flex', alignItems: 'center', gap: 14 }}>
             <div style={{ flex: 1, display: 'flex', flexDirection: 'column', gap: 2, minWidth: 0 }}>
-              <span style={{ font: "600 11px var(--fb)", letterSpacing: '.12em', color: 'var(--green)' }}>{entered}</span>
+              <span style={{ font: "600 11px var(--fb)", letterSpacing: '.12em', color: pass.enteredAt ? 'var(--yellow)' : 'var(--green)' }}>{status}</span>
               <span style={{ font: '800 26px/1 var(--fd)', fontStretch: '75%' }}>{me.event.title.toUpperCase()}</span>
-              <span style={{ font: "400 13px var(--fb)", color: 'var(--soft)' }}>{me.event.dateLabel} · {me.event.venueShort} · Tap for QR</span>
+              <span style={{ font: "400 13px var(--fb)", color: 'var(--soft)' }}>{me.event.dateLabel} · {me.event.venueShort} · {all > 1 ? `Tap for all ${all} QRs` : 'Tap for QR'}</span>
             </div>
             <MiniQr seed={pass.code} />
           </div>
-          <Mirrors color="var(--pink)" h={12} bg="transparent" />
+          <Mirrors color={tone.color} h={12} bg="transparent" />
         </button>
       )}
 
-      <div class="box" style={{ margin: '18px 20px 0', padding: '16px 18px', display: 'flex', alignItems: 'center', gap: 16 }}>
-        <div style={{ font: '800 64px/.8 var(--fd)', color: 'var(--pink)', fontStretch: '75%' }}>{remaining}</div>
-        <div style={{ flex: 1, display: 'flex', flexDirection: 'column', gap: 6 }}>
-          <span style={{ font: "600 15px/1.25 var(--fb)" }}>
-            {remaining === 1 ? 'pass' : 'passes'} left to share<br />
-            <span style={{ color: 'var(--muted)', fontWeight: 400 }}>{quota} for {GROUP_PLURAL[user.group]}</span>
-          </span>
-          {quota > 0 && (
-            <div style={{ display: 'flex', gap: 4 }}>
-              {Array.from({ length: quota }, (_, i) => <span key={i} style={{ flex: 1, height: 8, borderRadius: 4, background: i < quota - remaining ? 'var(--pink)' : 'var(--slot)' }} />)}
-            </div>
-          )}
+      {limit === 0 ? (
+        <div class="box" style={{ margin: '18px 20px 0', padding: '16px 18px', display: 'flex', alignItems: 'center', gap: 14 }}>
+          <span class="mirror-dot" />
+          <span style={{ font: "500 15px/1.35 var(--fb)" }}>Your pass is just for you.<br /><span style={{ color: 'var(--muted)', fontWeight: 400, fontSize: 14 }}>{user.group === 'pgp1' ? 'PGP1 passes can’t be shared this year.' : 'Your pass can’t be shared.'} Ask Cultcomm if you need an exception.</span></span>
         </div>
-      </div>
+      ) : (
+        <>
+          <div class="box" style={{ margin: '18px 20px 0', padding: '16px 18px', display: 'flex', alignItems: 'center', gap: 16 }}>
+            <div style={{ font: '800 64px/.8 var(--fd)', color: 'var(--pink)', fontStretch: '75%' }}>{remaining}</div>
+            <div style={{ flex: 1, display: 'flex', flexDirection: 'column', gap: 6 }}>
+              <span style={{ font: "600 15px/1.25 var(--fb)" }}>
+                guest {remaining === 1 ? 'pass' : 'passes'} left<br />
+                <span style={{ color: 'var(--muted)', fontWeight: 400 }}>{limit} for your friends & family</span>
+              </span>
+              <div style={{ display: 'flex', gap: 4 }}>
+                {Array.from({ length: limit }, (_, i) => <span key={i} style={{ flex: 1, height: 8, borderRadius: 4, background: i < limit - remaining ? 'var(--orange)' : 'var(--slot)' }} />)}
+              </div>
+            </div>
+          </div>
+          <div style={{ margin: '12px 20px 0' }}>
+            <Btn variant="yellow" icon="+" disabled={remaining === 0} onClick={() => navigate('/add')}>
+              {remaining > 0 ? 'Add a friend or family member' : 'All guest passes used'}
+            </Btn>
+          </div>
+        </>
+      )}
 
-      <div style={{ margin: '12px 20px 0' }}>
-        <Btn variant="yellow" icon="+" disabled={!canSend} onClick={() => navigate('/send')}>
-          {canSend ? 'Send a pass to a friend' : 'All passes shared'}
-        </Btn>
-      </div>
-
-      <div class="label" style={{ padding: '22px 22px 8px' }}>SENT</div>
-      <div style={{ margin: '0 20px', borderTop: '2px solid var(--ink)' }}>
-        {sent.length === 0 && <div class="row" style={{ color: 'var(--muted)', font: "400 14px var(--fb)" }}>No passes sent yet. Your friends will show up here.</div>}
-        {sent.map((p, i) => {
-          const st = statusOf(p);
-          return (
-            <button key={p.id} class="row" onClick={() => setSheet({ pass: p })}>
-              <div class="av" style={{ background: AVATAR_COLORS[i % 4] }}>{initials(p.holderName)}</div>
-              <div class="row-main"><span class="row-title">{p.holderName}</span><span class="row-sub">{p.holderContact}</span></div>
-              <span class="status" style={{ color: st.color }}>{st.label}</span>
-            </button>
-          );
-        })}
-      </div>
+      {guests.length > 0 && (
+        <>
+          <div class="label" style={{ padding: '22px 22px 8px' }}>YOUR GUESTS</div>
+          <div style={{ margin: '0 20px', borderTop: '2px solid var(--ink)' }}>
+            {guests.map((p, i) => (
+              <button key={p.id} class="row" onClick={() => setSheet({ pass: p, index: i + (pass ? 1 : 0) })}>
+                <div class="av" style={{ background: TONES.guest.color }}>{initials(p.holderName)}</div>
+                <div class="row-main">
+                  <span class="row-title">{p.holderName}</span>
+                  <span class="row-sub">{p.holderEmail ? `Can sign in as ${p.holderEmail}` : 'On your phone · or share a link'}</span>
+                </div>
+                <span class="status" style={{ color: p.enteredAt ? 'var(--ok-text)' : 'var(--orange)' }}>{p.enteredAt ? 'IN' : 'READY'}</span>
+              </button>
+            ))}
+          </div>
+        </>
+      )}
       <div style={{ height: 'calc(40px + var(--safe-b))', flex: 'none' }} />
 
       {sheet && (
-        <Sheet onClose={() => setSheet(null)} stripe={sheet.pass.status === 'SENT' ? 'var(--pink)' : 'var(--green)'}>
+        <Sheet onClose={() => setSheet(null)} stripe={TONES.guest.color}>
           <div style={{ display: 'flex', flexDirection: 'column' }}>
-            <span class="label">{sheet.claimUrl ? 'PASS SENT' : sheet.pass.code}</span>
+            <span class="label">{sheet.pass.code} · GUEST</span>
             <span style={{ font: '800 30px/1 var(--fd)', fontStretch: '75%' }}>{sheet.pass.holderName.toUpperCase()}</span>
             <span class="note" style={{ marginTop: 6 }}>
-              {sheet.pass.status === 'SENT'
-                ? `Share the link so ${sheet.pass.holderName.split(' ')[0]} can claim it in their name.${sheet.pass.holderContact.includes('@') ? ' We also emailed it.' : ''} You can take it back until they claim it.`
-                : sheet.pass.enteredAt ? `Entered at Gate ${sheet.pass.enteredGate} · ${istTime(sheet.pass.enteredAt)}.` : 'Claimed. They can open their pass from the link or by signing in.'}
+              {sheet.pass.enteredAt
+                ? `Scanned at ${istTime(sheet.pass.enteredAt)} · Gate ${sheet.pass.enteredGate}.`
+                : sheet.pass.holderEmail
+                  ? `They can sign in with Google as ${sheet.pass.holderEmail} to show their own QR, or you can show it from your phone.`
+                  : 'Show their QR from your phone at the gate, or share their pass link so they can open it themselves.'}
             </span>
           </div>
-          {sheet.pass.status === 'SENT' && <Btn onClick={() => shareLink(sheet.pass, sheet.claimUrl)} icon="↗">Share claim link</Btn>}
-          {sheet.pass.status === 'SENT' && <Btn variant="ghost" disabled={busy} onClick={() => takeBack(sheet.pass)} icon="↩">Take back pass</Btn>}
-          {sheet.pass.status !== 'SENT' && <Btn variant="ghost" onClick={() => setSheet(null)} icon="✓">Done</Btn>}
+          {!sheet.pass.enteredAt && <Btn onClick={() => navigate(`/pass?i=${sheet.index}`)}>Show their QR</Btn>}
+          {!sheet.pass.enteredAt && <Btn variant="ghost" icon="↗" onClick={() => shareLink(sheet.pass)}>Share pass link (WhatsApp)</Btn>}
+          {!sheet.pass.enteredAt && <Btn variant="ghost" disabled={busy} icon="✕" onClick={() => remove(sheet.pass)}>Remove guest</Btn>}
+          {sheet.pass.enteredAt && <Btn variant="ghost" icon="✓" onClick={() => setSheet(null)}>Done</Btn>}
         </Sheet>
       )}
       {account && <AccountSheet me={me} onClose={() => setAccount(false)} />}

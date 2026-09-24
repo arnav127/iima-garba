@@ -3,7 +3,7 @@ import { FactGrid, Logo, Mirrors, Rainbow, Zigzag, Btn } from '../components/ui.
 import { navigate, storage } from '../lib.ts';
 
 export function Landing({ event }: { event: EventInfo }) {
-  const guestPass = storage.get<string>('garba:claim');
+  const guestPass = storage.get<string>('garba:link');
   return (
     <div class="screen">
       <div style={{ height: 'var(--safe-t)', background: 'var(--ivory)' }} />
@@ -26,9 +26,9 @@ export function Landing({ event }: { event: EventInfo }) {
       <div class="bottom">
         <Btn onClick={() => navigate('/login')}>Sign in to get your pass</Btn>
         {guestPass && (
-          <Btn variant="ghost" onClick={() => navigate(`/claim/${guestPass}`)}>Open my guest pass</Btn>
+          <Btn variant="ghost" onClick={() => navigate(`/p/${guestPass}`)}>Open my saved pass</Btn>
         )}
-        <div style={{ textAlign: 'center', font: "400 13px var(--fb)", color: 'var(--muted)' }}>Pass exchange guests: sign in with your college email</div>
+        <div style={{ textAlign: 'center', font: "400 13px var(--fb)", color: 'var(--muted)' }}>IIMA: sign in with your @iima.ac.in account · Guests: use the Gmail your host added</div>
       </div>
     </div>
   );

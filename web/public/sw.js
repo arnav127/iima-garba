@@ -1,6 +1,6 @@
 // Keeps the app shell available with a weak network at the venue.
 // Hashed assets: cache-first. Pages: network-first with cached fallback. API: never cached here.
-const CACHE = 'garba-v1';
+const CACHE = 'garba-v2';
 
 self.addEventListener('install', (e) => {
   e.waitUntil(caches.open(CACHE).then((c) => c.addAll(['/', '/cultcomm.jpg'])).then(() => self.skipWaiting()));

@@ -2,16 +2,15 @@ package garba
 
 import (
 	"encoding/json"
+	"regexp"
 	"strings"
 	"sync"
 
 	"github.com/pocketbase/pocketbase/core"
 )
 
-var Groups = []string{"pgp1", "pgp2", "pgpx", "phd", "faculty", "staff", "exchange", "guest"}
-
 var GroupLabel = map[string]string{
-	"pgp1": "PGP1", "pgp2": "PGP2", "pgpx": "PGPX", "phd": "PhD", "faculty": "Faculty", "staff": "Staff", "exchange": "Exchange", "guest": "Guest",
+	"pgp1": "PGP1", "student": "Student", "faculty": "Faculty & Staff", "exchange": "Exchange", "guest": "Guest",
 }
 
 type EventInfo struct {
@@ -24,9 +23,18 @@ type EventInfo struct {
 	Gates      int    `json:"gates"`
 }
 
+// Limits are how many guests (friends or family) each group can add, on top of their own pass.
+type Limits struct {
+	PGP1    int `json:"pgp1"`
+	Student int `json:"student"`
+	Faculty int `json:"faculty"`
+}
+
 type Settings struct {
-	Event  EventInfo      `json:"event"`
-	Quotas map[string]int `json:"quotas"`
+	Event  EventInfo `json:"event"`
+	Limits Limits    `json:"limits"`
+	// Email prefixes (before @) that mark PGP1 students, e.g. p26, f26.
+	PGP1Prefixes []string `json:"pgp1Prefixes"`
 }
 
 // Placeholders from the design. Admins change these from the Settings tab.
@@ -41,7 +49,8 @@ func defaultSettings() Settings {
 			DressCode:  "Dress code: chaniya choli, kediyu, kurta. Dandiyas provided.",
 			Gates:      2,
 		},
-		Quotas: map[string]int{"pgp1": 4, "pgp2": 4, "pgpx": 2, "phd": 2, "faculty": 4, "staff": 2, "exchange": 0, "guest": 0},
+		Limits:       Limits{PGP1: 0, Student: 3, Faculty: 3},
+		PGP1Prefixes: []string{"p26", "f26"},
 	}
 }
 
@@ -60,27 +69,31 @@ func (s *Service) Settings() Settings {
 
 	out := defaultSettings()
 	if rec, err := s.app.FindFirstRecordByFilter("garba_settings", "id != ''"); err == nil {
-		var ev EventInfo
-		if json.Unmarshal([]byte(rec.GetString("event")), &ev) == nil {
-			mergeEvent(&out.Event, ev)
-		}
-		var q map[string]int
-		if json.Unmarshal([]byte(rec.GetString("quotas")), &q) == nil {
-			for k, v := range q {
-				if _, ok := GroupLabel[k]; ok && v >= 0 && v <= 50 {
-					out.Quotas[k] = v
-				}
-			}
+		var saved SettingsInput
+		if json.Unmarshal([]byte(rec.GetString("data")), &saved) == nil {
+			out = merge(out, saved)
 		}
 	}
-	out.Quotas["guest"] = 0
 	s.cache.mu.Lock()
 	s.cache.val = &out
 	s.cache.mu.Unlock()
 	return out
 }
 
-func mergeEvent(dst *EventInfo, src EventInfo) {
+var prefixRe = regexp.MustCompile(`^[a-z0-9._-]{1,20}$`)
+
+// SettingsInput is a partial update: anything left out keeps its current value.
+type SettingsInput struct {
+	Event  EventInfo `json:"event"`
+	Limits struct {
+		PGP1    *int `json:"pgp1"`
+		Student *int `json:"student"`
+		Faculty *int `json:"faculty"`
+	} `json:"limits"`
+	PGP1Prefixes []string `json:"pgp1Prefixes"`
+}
+
+func merge(dst Settings, src SettingsInput) Settings {
 	set := func(d *string, v string) {
 		if v = strings.TrimSpace(v); v != "" {
 			if len(v) > 200 {
@@ -89,31 +102,38 @@ func mergeEvent(dst *EventInfo, src EventInfo) {
 			*d = v
 		}
 	}
-	set(&dst.Title, src.Title)
-	set(&dst.DateLabel, src.DateLabel)
-	set(&dst.Venue, src.Venue)
-	set(&dst.VenueShort, src.VenueShort)
-	set(&dst.TimeLabel, src.TimeLabel)
-	set(&dst.DressCode, src.DressCode)
-	if src.Gates >= 1 && src.Gates <= 20 {
-		dst.Gates = src.Gates
+	set(&dst.Event.Title, src.Event.Title)
+	set(&dst.Event.DateLabel, src.Event.DateLabel)
+	set(&dst.Event.Venue, src.Event.Venue)
+	set(&dst.Event.VenueShort, src.Event.VenueShort)
+	set(&dst.Event.TimeLabel, src.Event.TimeLabel)
+	set(&dst.Event.DressCode, src.Event.DressCode)
+	if src.Event.Gates >= 1 && src.Event.Gates <= 20 {
+		dst.Event.Gates = src.Event.Gates
 	}
-}
-
-func (s *Service) SaveSettings(in Settings) (Settings, error) {
-	next := s.Settings()
-	mergeEvent(&next.Event, in.Event)
-	quotas := map[string]int{}
-	for k, v := range next.Quotas {
-		quotas[k] = v
-	}
-	for k, v := range in.Quotas {
-		if _, ok := GroupLabel[k]; ok && k != "guest" && v >= 0 && v <= 50 {
-			quotas[k] = v
+	lim := func(d *int, v *int) {
+		if v != nil && *v >= 0 && *v <= 50 {
+			*d = *v
 		}
 	}
-	next.Quotas = quotas
+	lim(&dst.Limits.PGP1, src.Limits.PGP1)
+	lim(&dst.Limits.Student, src.Limits.Student)
+	lim(&dst.Limits.Faculty, src.Limits.Faculty)
+	if src.PGP1Prefixes != nil {
+		var p []string
+		for _, v := range src.PGP1Prefixes {
+			v = strings.ToLower(strings.TrimSpace(v))
+			if prefixRe.MatchString(v) {
+				p = append(p, v)
+			}
+		}
+		dst.PGP1Prefixes = p
+	}
+	return dst
+}
 
+func (s *Service) SaveSettings(in SettingsInput) (Settings, error) {
+	next := merge(s.Settings(), in)
 	rec, err := s.app.FindFirstRecordByFilter("garba_settings", "id != ''")
 	if err != nil {
 		col, err := s.app.FindCollectionByNameOrId("garba_settings")
@@ -122,8 +142,7 @@ func (s *Service) SaveSettings(in Settings) (Settings, error) {
 		}
 		rec = core.NewRecord(col)
 	}
-	rec.Set("event", next.Event)
-	rec.Set("quotas", next.Quotas)
+	rec.Set("data", next)
 	if err := s.app.Save(rec); err != nil {
 		return next, err
 	}

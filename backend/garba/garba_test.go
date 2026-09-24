@@ -1,11 +1,14 @@
 package garba
 
 import (
+	"bytes"
 	"strings"
 	"sync"
 	"testing"
+	"time"
 
 	"github.com/pocketbase/pocketbase/core"
+	"github.com/xuri/excelize/v2"
 
 	_ "github.com/arnav127/iima-garba/backend/migrations"
 )
@@ -20,170 +23,245 @@ func setup(t *testing.T) (*Service, core.App) {
 		t.Fatal(err)
 	}
 	t.Cleanup(func() { app.ResetBootstrapState() })
-	s := New(app)
-	s.Mail = func(to, subject, text string) {}
-	res, err := s.ImportPeople(`email,name,group,college,role
-p25aarav@iima.ac.in,Aarav Shah,PGP1,,
-p24meera@iima.ac.in,Meera Iyer,pgp2,,volunteer
-ishaan.m@spjimr.org,Ishaan Mehta,exchange,SPJIMR Mumbai,
-bad-email,Nope,pgp1,,
-x@iima.ac.in,No Group,wizard,,
-y@nmims.edu,No College,exchange,,
-`)
-	if err != nil {
-		t.Fatal(err)
-	}
-	if res.Created != 3 || len(res.Errors) != 3 {
-		t.Fatalf("import: %+v", res)
-	}
-	return s, app
+	return New(app), app
 }
 
-func user(t *testing.T, app core.App, email string) *core.Record {
+func signIn(t *testing.T, s *Service, email, name string) *core.Record {
 	t.Helper()
-	u, err := app.FindAuthRecordByEmail("users", email)
+	u, err := s.SignInUser(email, name)
 	if err != nil {
-		t.Fatal(err)
+		t.Fatalf("sign in %s: %v", email, err)
 	}
 	return u
 }
 
-func TestImportGivesOwnPasses(t *testing.T) {
-	s, app := setup(t)
-	me, err := s.Me(user(t, app, "p25aarav@iima.ac.in"))
+func me(t *testing.T, s *Service, u *core.Record) MeResponse {
+	t.Helper()
+	m, err := s.Me(u)
 	if err != nil {
 		t.Fatal(err)
 	}
-	if me.Pass == nil || me.Pass.Kind != "own" || me.Pass.TypeLabel != "PGP1" || !strings.HasPrefix(me.Pass.QR, qrPrefix) || me.Quota != 4 || me.Remaining != 4 {
-		t.Fatalf("unexpected me: %+v %+v", me, me.Pass)
+	return m
+}
+
+func TestIIMASignInAndCohorts(t *testing.T) {
+	s, _ := setup(t)
+	cases := []struct {
+		email, group string
+		limit        int
+		tone         string
+	}{
+		{"p26diya@iima.ac.in", "pgp1", 0, "student"},
+		{"F26Arjun@IIMA.ac.in", "pgp1", 0, "student"},
+		{"p25aarav@iima.ac.in", "student", 3, "student"},
+		{"phd23neha@iima.ac.in", "student", 3, "student"},
+		{"meena.k@iima.ac.in", "faculty", 3, "faculty"},
 	}
-	guest, _ := s.Me(user(t, app, "ishaan.m@spjimr.org"))
-	if guest.Pass == nil || guest.Pass.Kind != "exchange" || !strings.HasPrefix(guest.Pass.Code, "GRB-X-") || guest.Quota != 0 {
-		t.Fatalf("unexpected exchange pass: %+v", guest.Pass)
+	for _, c := range cases {
+		u := signIn(t, s, c.email, "Some One")
+		m := me(t, s, u)
+		if m.User.Group != c.group || m.Limit != c.limit || m.Pass == nil || m.Pass.Kind != "own" || m.Pass.Tone != c.tone || m.Pass.Key == "" {
+			t.Fatalf("%s: group=%s limit=%d pass=%+v", c.email, m.User.Group, m.Limit, m.Pass)
+		}
 	}
-	// Re-import updates instead of duplicating.
-	res, err := s.ImportPeople("email,name,group\np25aarav@iima.ac.in,Aarav S. Shah,pgp2\n")
-	if err != nil || res.Updated != 1 || res.Created != 0 {
-		t.Fatalf("reimport: %+v %v", res, err)
+	// Signing in again doesn't create a second pass.
+	u := signIn(t, s, "p25aarav@iima.ac.in", "Aarav Shah")
+	if n, _ := s.app.CountRecords("passes", nil); n != 5 {
+		t.Fatalf("passes: %d", n)
 	}
-	me, _ = s.Me(user(t, app, "p25aarav@iima.ac.in"))
-	if me.Pass.HolderName != "Aarav S. Shah" || me.Pass.TypeLabel != "PGP2" {
-		t.Fatalf("reimport not applied: %+v", me.Pass)
+	if _, err := s.SignInUser("stranger@gmail.com", "X"); err != ErrNotOnList {
+		t.Fatalf("stranger: %v", err)
+	}
+	_ = u
+}
+
+func TestGuestsLimitsAndSignIn(t *testing.T) {
+	s, _ := setup(t)
+	aarav := signIn(t, s, "p25aarav@iima.ac.in", "Aarav Shah")
+	diya := signIn(t, s, "p26diya@iima.ac.in", "Diya Rao")
+
+	if _, err := s.AddGuest(diya, "Friend", ""); err == nil || !strings.Contains(err.Error(), "yourself only") {
+		t.Fatalf("pgp1 should not add guests: %v", err)
+	}
+	m, err := s.AddGuest(aarav, "Riya  Patel", "Riya.Patel@gmail.com")
+	if err != nil || m.Remaining != 2 || m.Guests[0].HolderName != "Riya Patel" || m.Guests[0].Key == "" || m.Guests[0].Tone != "guest" {
+		t.Fatalf("add: %+v %v", m, err)
+	}
+	if _, err := s.AddGuest(aarav, "Riya again", "riya.patel@gmail.com"); err == nil {
+		t.Fatal("duplicate email should fail")
+	}
+	if _, err := s.AddGuest(aarav, "Classmate", "p25x@iima.ac.in"); err == nil {
+		t.Fatal("IIMA email as guest should fail")
+	}
+	s.AddGuest(aarav, "Kabir Desai", "")
+	s.AddGuest(aarav, "Sunita Shah", "")
+	if _, err := s.AddGuest(aarav, "One More", ""); err == nil {
+		t.Fatal("limit should apply")
+	}
+
+	// Admin raises Aarav's limit only.
+	lim := 5
+	if p, err := s.UpdatePerson(aarav.Id, PersonUpdate{Limit: &lim}); err != nil || p.Limit != 5 {
+		t.Fatalf("override: %+v %v", p, err)
+	}
+	if _, err := s.AddGuest(aarav, "One More", ""); err != nil {
+		t.Fatal(err)
+	}
+	// And gives Diya (PGP1) one guest.
+	one := 1
+	s.UpdatePerson(diya.Id, PersonUpdate{Limit: &one})
+	if _, err := s.AddGuest(diya, "Diya's Mom", ""); err != nil {
+		t.Fatal(err)
+	}
+
+	// Riya can now sign in with Google and sees only her own pass.
+	riya := signIn(t, s, "riya.patel@gmail.com", "Riya P")
+	rm := me(t, s, riya)
+	if rm.User.Group != "guest" || rm.Pass == nil || rm.Pass.HolderName != "Riya Patel" || rm.Limit != 0 || len(rm.Guests) != 0 {
+		t.Fatalf("riya: %+v", rm)
+	}
+	if _, err := s.AddGuest(riya, "Plus one", ""); err == nil {
+		t.Fatal("guests can't add guests")
+	}
+
+	// Removing frees the slot; the link stops working.
+	link, _ := s.GuestLink(aarav, rm.Pass.ID, "https://garba.test")
+	token := link[strings.LastIndex(link, "/")+1:]
+	if lr, err := s.PassByLink(token); err != nil || lr.Pass.Key == "" {
+		t.Fatalf("link: %v", err)
+	}
+	after, err := s.RemoveGuest(aarav, rm.Pass.ID)
+	if err != nil || len(after.Guests) != 3 || after.Remaining != 2 {
+		t.Fatalf("remove: %+v %v", after, err)
+	}
+	if _, err := s.PassByLink(token); err == nil {
+		t.Fatal("removed pass link should fail")
 	}
 }
 
-func TestSendClaimScan(t *testing.T) {
-	s, app := setup(t)
-	aarav := user(t, app, "p25aarav@iima.ac.in")
-	meera := user(t, app, "p24meera@iima.ac.in")
+func TestRotatingQRScan(t *testing.T) {
+	s, _ := setup(t)
+	now := time.Date(2026, 10, 17, 19, 41, 5, 0, ist)
+	s.Now = func() time.Time { return now }
+	s.SaveSettings(SettingsInput{Event: EventInfo{Gates: 4}})
+	aarav := signIn(t, s, "p25aarav@iima.ac.in", "Aarav Shah")
+	vol := signIn(t, s, "p24meera@iima.ac.in", "Meera")
+	m := me(t, s, aarav)
+	p := m.Pass
 
-	byPhone, err := s.SendPass(aarav, "Kabir  Desai", "+91 98250 11223", "https://garba.test")
-	if err != nil {
-		t.Fatal(err)
+	if r, _ := s.Scan(vol, QRPayload(p.Key, p.ID, now.Add(-2*time.Minute)), 3); r.Outcome != "expired" {
+		t.Fatalf("old screenshot: %+v", r)
 	}
-	if byPhone.Me.Remaining != 3 || byPhone.Pass.Status != "SENT" || !strings.HasPrefix(byPhone.ClaimURL, "https://garba.test/claim/") {
-		t.Fatalf("send: %+v", byPhone)
+	bad := QRPayload("wrong-key", p.ID, now)
+	if r, _ := s.Scan(vol, bad, 3); r.Outcome != "invalid" {
+		t.Fatalf("forged: %+v", r)
 	}
-	if _, err := s.SendPass(aarav, "Kabir Desai", "+919825011223", "x"); err == nil {
-		t.Fatal("expected duplicate contact to fail")
+	if r, _ := s.Scan(vol, "https://example.com", 3); r.Outcome != "invalid" {
+		t.Fatalf("junk: %+v", r)
 	}
-	if _, err := s.SendPass(aarav, "Meera", "p24meera@iima.ac.in", "x"); err == nil {
-		t.Fatal("expected sending to a roster member to fail")
+	r, _ := s.Scan(vol, QRPayload(p.Key, p.ID, now.Add(-20*time.Second)), 3)
+	if r.Outcome != "allowed" || r.Name != "Aarav Shah" || r.Tone != "student" || r.Entered != 1 {
+		t.Fatalf("allowed: %+v", r)
 	}
-
-	// Unclaimed passes can't enter.
-	token := byPhone.ClaimURL[strings.LastIndex(byPhone.ClaimURL, "/")+1:]
-	r, _ := s.Scan(meera, byPhone.Pass.Code, 1)
-	if r.Outcome != "unclaimed" {
-		t.Fatalf("scan unclaimed: %+v", r)
+	r, _ = s.Scan(vol, QRPayload(p.Key, p.ID, now), 1)
+	if r.Outcome != "used" || r.Sub != "Scanned at 7:41 PM · Gate 3" {
+		t.Fatalf("used: %+v", r)
 	}
-	info, err := s.Claim(token, "Kabir Desai")
-	if err != nil || !info.Claimed || info.Pass.QR == "" {
-		t.Fatalf("claim: %+v %v", info, err)
-	}
-	if err := s.RevokeSent(aarav, byPhone.Pass.ID); err == nil {
-		t.Fatal("claimed pass should not be revocable")
-	}
-
-	r, _ = s.Scan(meera, info.Pass.QR, 2)
-	if r.Outcome != "allowed" || r.Name != "Kabir Desai" || !strings.Contains(r.Meta, "Guest of Aarav Shah") || r.Entered != 1 {
-		t.Fatalf("scan allowed: %+v", r)
-	}
-	r, _ = s.Scan(meera, info.Pass.QR, 1)
-	if r.Outcome != "used" || !strings.Contains(r.Sub, "Gate 2") {
-		t.Fatalf("scan used: %+v", r)
-	}
-	r, _ = s.Scan(meera, "https://example.com", 1)
-	if r.Outcome != "invalid" {
-		t.Fatalf("scan invalid: %+v", r)
+	if m := me(t, s, aarav); m.Pass.EnteredAt == nil || *m.Pass.EnteredGate != 3 {
+		t.Fatalf("pass should show entered: %+v", m.Pass)
 	}
 
-	// Email recipients get an account and see the pass when they sign in.
-	byMail, err := s.SendPass(aarav, "Riya Patel", "Riya.Patel@gmail.com", "x")
-	if err != nil {
-		t.Fatal(err)
+	// Typed code: needs an ID check, then admit.
+	g, _ := s.AddGuest(aarav, "Kabir Desai", "")
+	code := g.Guests[0].Code
+	r, _ = s.Scan(vol, strings.ToLower(code), 2)
+	if r.Outcome != "check" || r.PassID == "" || r.Tone != "guest" {
+		t.Fatalf("manual: %+v", r)
 	}
-	riya := user(t, app, "riya.patel@gmail.com")
-	rm, _ := s.Me(riya)
-	if rm.Pass == nil || rm.Pass.ID != byMail.Pass.ID || rm.Pass.Status != "CLAIMED" || rm.Quota != 0 {
-		t.Fatalf("guest me: %+v", rm.Pass)
+	if r, _ = s.Admit(vol, r.PassID, 2); r.Outcome != "allowed" {
+		t.Fatalf("admit: %+v", r)
 	}
-
-	// Take back an unclaimed pass frees the slot.
-	p3, _ := s.SendPass(aarav, "Nisha Joshi", "9876543210", "x")
-	if err := s.RevokeSent(aarav, p3.Pass.ID); err != nil {
-		t.Fatal(err)
+	if _, err := s.RemoveGuest(aarav, g.Guests[0].ID); err == nil {
+		t.Fatal("entered guest can't be removed")
 	}
-	me, _ := s.Me(aarav)
-	if me.Remaining != 2 || len(me.Sent) != 2 {
-		t.Fatalf("after revoke: remaining=%d sent=%d", me.Remaining, len(me.Sent))
-	}
-
-	stats, err := s.Stats()
-	if err != nil || stats.Entered != 1 || stats.Members != 2 || stats.Exchange != 1 || stats.PendingClaims != 0 {
-		t.Fatalf("stats: %+v %v", stats, err)
-	}
-	if list, _ := s.AdminPasses("aarav", ""); len(list) != 4 { // own pass + 3 sent incl. the revoked one (issuer name match)
-		t.Fatalf("admin search: %d", len(list))
-	}
-	if csv, err := s.ExportCSV(); err != nil || !strings.Contains(string(csv), "Kabir Desai") {
-		t.Fatalf("export: %v", err)
+	stats, _ := s.Stats()
+	if stats.Entered != 2 || stats.Members != 2 || stats.Guests != 1 {
+		t.Fatalf("stats: %+v", stats)
 	}
 }
 
-func TestQuotaAndConcurrentScan(t *testing.T) {
-	s, app := setup(t)
-	aarav := user(t, app, "p25aarav@iima.ac.in")
-	if _, err := s.SaveSettings(Settings{Quotas: map[string]int{"pgp1": 1}}); err != nil {
-		t.Fatal(err)
+func TestPartialSettings(t *testing.T) {
+	s, _ := setup(t)
+	two := 2
+	in := SettingsInput{PGP1Prefixes: []string{"P27", " f27 ", "bad prefix!"}}
+	in.Limits.Faculty = &two
+	out, err := s.SaveSettings(in)
+	if err != nil || out.Limits != (Limits{PGP1: 0, Student: 3, Faculty: 2}) || strings.Join(out.PGP1Prefixes, ",") != "p27,f27" || out.Event.Gates != 2 {
+		t.Fatalf("settings: %+v %v", out, err)
 	}
-	if _, err := s.SendPass(aarav, "One Friend", "9000000001", "x"); err != nil {
-		t.Fatal(err)
+	if u := signIn(t, s, "p27new@iima.ac.in", "New"); group(u) != "pgp1" {
+		t.Fatalf("prefix change: %s", group(u))
 	}
-	if _, err := s.SendPass(aarav, "Two Friend", "9000000002", "x"); err == nil {
-		t.Fatal("expected quota error")
-	}
+}
 
-	// Many volunteers scanning the same pass at once: exactly one entry.
-	meera := user(t, app, "p24meera@iima.ac.in")
-	me, _ := s.Me(aarav)
+func TestConcurrentScansAdmitOnce(t *testing.T) {
+	s, _ := setup(t)
+	aarav := signIn(t, s, "p25aarav@iima.ac.in", "Aarav Shah")
+	vol := signIn(t, s, "p24meera@iima.ac.in", "Meera")
+	p := me(t, s, aarav).Pass
+	payload := QRPayload(p.Key, p.ID, time.Now())
 	var wg sync.WaitGroup
 	var mu sync.Mutex
 	allowed := 0
 	for i := 0; i < 20; i++ {
 		wg.Add(1)
-		go func() {
+		go func(gate int) {
 			defer wg.Done()
-			r, err := s.Scan(meera, me.Pass.QR, 1)
-			if err == nil && r.Outcome == "allowed" {
+			if r, err := s.Scan(vol, payload, gate); err == nil && r.Outcome == "allowed" {
 				mu.Lock()
 				allowed++
 				mu.Unlock()
 			}
-		}()
+		}(i%3 + 1)
 	}
 	wg.Wait()
 	if allowed != 1 {
 		t.Fatalf("allowed %d times", allowed)
+	}
+}
+
+func TestExchangeImport(t *testing.T) {
+	s, _ := setup(t)
+	f := excelize.NewFile()
+	rows := [][]any{
+		{"Full Name", "Email ID", "Institute", "Mobile"},
+		{"Ishaan Mehta", "Ishaan.M@spjimr.org", "SPJIMR Mumbai", "9820000000"},
+		{"Tara Singh", "", "XLRI Jamshedpur", ""},
+		{"Bad Row", "not-an-email", "X", ""},
+		{"Sneaky", "p25x@iima.ac.in", "IIMA", ""},
+	}
+	for i, r := range rows {
+		cell, _ := excelize.CoordinatesToCellName(1, i+1)
+		f.SetSheetRow("Sheet1", cell, &r)
+	}
+	var buf bytes.Buffer
+	f.Write(&buf)
+	res, err := s.ImportExchange("guests.xlsx", buf.Bytes())
+	if err != nil || res.Created != 2 || len(res.Errors) != 2 {
+		t.Fatalf("xlsx: %+v %v", res, err)
+	}
+	// Re-upload as CSV updates instead of duplicating.
+	res, err = s.ImportExchange("guests.csv", []byte("Name,Email,College\nIshaan Mehta,ishaan.m@spjimr.org,SPJIMR\n"))
+	if err != nil || res.Updated != 1 || res.Created != 0 {
+		t.Fatalf("csv: %+v %v", res, err)
+	}
+	ishaan := signIn(t, s, "ishaan.m@spjimr.org", "Ishaan")
+	m := me(t, s, ishaan)
+	if m.User.Group != "exchange" || m.Pass == nil || m.Pass.Tone != "exchange" || !strings.HasPrefix(m.Pass.Code, "GRB-X-") || *m.Pass.College != "SPJIMR" {
+		t.Fatalf("exchange me: %+v", m.Pass)
+	}
+	links, err := s.ExchangeLinks("https://garba.test")
+	if err != nil || !strings.Contains(string(links), "https://garba.test/p/") || !strings.Contains(string(links), "Tara Singh") {
+		t.Fatalf("links: %s %v", links, err)
 	}
 }

@@ -1,21 +1,24 @@
 // API shapes of the /api/garba/* routes. Keep in sync with backend/garba/*.go.
 
-export type Group = 'pgp1' | 'pgp2' | 'pgpx' | 'phd' | 'faculty' | 'staff' | 'exchange' | 'guest';
+/** pgp1 | student | faculty come from the @iima.ac.in address; guest | exchange from the pass they hold. */
+export type Group = 'pgp1' | 'student' | 'faculty' | 'exchange' | 'guest';
 export type Role = 'member' | 'volunteer' | 'admin';
 export type PassKind = 'own' | 'guest' | 'exchange';
-export type PassStatus = 'SENT' | 'CLAIMED' | 'REVOKED';
+export type PassStatus = 'ACTIVE' | 'REVOKED';
+/** Colour family shown on passes and at the gate. */
+export type Tone = 'student' | 'faculty' | 'guest' | 'exchange';
 
-/** Groups that can be imported from the roster CSV and given a quota. */
-export const GROUPS: Group[] = ['pgp1', 'pgp2', 'pgpx', 'phd', 'faculty', 'staff', 'exchange'];
+export const MEMBER_GROUPS: Group[] = ['pgp1', 'student', 'faculty'];
 
 export const GROUP_LABEL: Record<Group, string> = {
-  pgp1: 'PGP1', pgp2: 'PGP2', pgpx: 'PGPX', phd: 'PhD', faculty: 'Faculty', staff: 'Staff', exchange: 'Exchange', guest: 'Guest',
+  pgp1: 'PGP1', student: 'Student', faculty: 'Faculty & Staff', exchange: 'Exchange', guest: 'Guest',
 };
 
-/** Used in "4 for PGP1 students". */
-export const GROUP_PLURAL: Record<Group, string> = {
-  pgp1: 'PGP1 students', pgp2: 'PGP2 students', pgpx: 'PGPX students', phd: 'PhD scholars',
-  faculty: 'faculty', staff: 'staff', exchange: 'exchange guests', guest: 'guests',
+export const TONES: Record<Tone, { color: string; label: string; id: string }> = {
+  student: { color: '#e8317a', label: 'Student', id: 'student ID' },
+  faculty: { color: '#2a5bd7', label: 'Faculty & Staff', id: 'IIMA ID' },
+  guest: { color: '#f5872a', label: 'Guest', id: 'photo ID' },
+  exchange: { color: '#1aa7a0', label: 'Exchange', id: 'college ID' },
 };
 
 export interface EventInfo {
@@ -28,11 +31,16 @@ export interface EventInfo {
   gates: number;
 }
 
-export type Quotas = Partial<Record<Group, number>>;
+export interface Limits {
+  pgp1: number;
+  student: number;
+  faculty: number;
+}
 
 export interface Settings {
   event: EventInfo;
-  quotas: Quotas;
+  limits: Limits;
+  pgp1Prefixes: string[];
 }
 
 export interface PassView {
@@ -41,16 +49,15 @@ export interface PassView {
   kind: PassKind;
   status: PassStatus;
   holderName: string;
-  holderContact: string;
-  typeLabel: string;       // PGP1 / Exchange / Guest
+  holderEmail: string | null;
+  typeLabel: string;       // PGP1 / Student / Faculty & Staff / Guest / Exchange
+  tone: Tone;
   college: string | null;
   issuerName: string | null;
   enteredAt: number | null;
   enteredGate: number | null;
-  /** QR payload. Only sent to the pass holder. */
-  qr?: string;
-  /** Admin views only. */
-  holderEmail?: string | null;
+  /** Key for the rotating QR; only sent to people allowed to show the pass. */
+  key?: string;
 }
 
 export interface Me {
@@ -59,25 +66,28 @@ export interface Me {
   name: string;
   group: Group;
   role: Role;
-  college: string | null;
+  groupLocked: boolean;
+  hasLimit: boolean;
+  guestLimit: number;
 }
 
 export interface MeResponse {
   user: Me;
   event: EventInfo;
   pass: PassView | null;
-  quota: number;
+  guests: PassView[];
+  limit: number;
   remaining: number;
-  sent: PassView[];
+  serverTime: number;
 }
 
-export interface ClaimResponse {
+export interface LinkResponse {
   event: EventInfo;
   pass: PassView;
-  claimed: boolean;
+  serverTime: number;
 }
 
-export type ScanOutcome = 'allowed' | 'used' | 'revoked' | 'unclaimed' | 'invalid';
+export type ScanOutcome = 'allowed' | 'used' | 'revoked' | 'invalid' | 'expired' | 'check';
 
 export interface ScanResult {
   outcome: ScanOutcome;
@@ -85,36 +95,26 @@ export interface ScanResult {
   sub: string;
   name: string;
   meta: string;
+  tone: Tone | '';
+  typeLabel: string;
+  passId?: string;
   entered: number;
 }
 
 export interface AdminStats {
   entered: number;
   issued: number;
-  claimed: number;
-  pendingClaims: number;
   members: number;
+  guests: number;
   exchange: number;
   byGate: { gate: number; count: number }[];
   byKind: { kind: PassKind; issued: number; entered: number }[];
-  recent: { name: string; code: string; gate: number; at: number }[];
+  recent: { name: string; code: string; kind: PassKind; gate: number; at: number }[];
 }
 
-
-export interface AdminPerson {
-  id: string;
-  email: string;
-  name: string;
-  group: Group;
-  role: Role;
-  college: string | null;
-  sent: number;
-}
-
-export interface SendResponse {
-  pass: PassView;
-  claimUrl: string;
-  me: MeResponse;
+export interface AdminPerson extends Me {
+  guests: number;
+  limit: number;
 }
 
 export interface ImportResult {
@@ -122,3 +122,5 @@ export interface ImportResult {
   updated: number;
   errors: { line: number; reason: string }[];
 }
+
+export const toneOfKind = (k: PassKind): Tone => (k === 'own' ? 'student' : k);

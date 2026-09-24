@@ -1,7 +1,6 @@
-import { useRef, useState } from 'preact/hooks';
-import { Back, Btn, Top, Zigzag } from '../components/ui.tsx';
-import { afterSignIn, navigate, pb, pbCall, startGoogleSignIn, storage } from '../lib.ts';
-import { homeFor } from '../routes.ts';
+import { useEffect, useState } from 'preact/hooks';
+import { Back, Top, Zigzag } from '../components/ui.tsx';
+import { enabledProviders, navigate, startSignIn, storage, type Provider } from '../lib.ts';
 
 const GoogleG = () => (
   <svg width="20" height="20" viewBox="0 0 48 48" aria-hidden="true" style={{ background: '#fff', borderRadius: 4, padding: 2, boxSizing: 'content-box' }}>
@@ -12,116 +11,68 @@ const GoogleG = () => (
   </svg>
 );
 
+const MicrosoftM = () => (
+  <svg width="20" height="20" viewBox="0 0 22 22" aria-hidden="true" style={{ background: '#fff', borderRadius: 4, padding: 2, boxSizing: 'content-box' }}>
+    <path fill="#f25022" d="M1 1h9.5v9.5H1z" /><path fill="#7fba00" d="M11.5 1H21v9.5h-9.5z" />
+    <path fill="#00a4ef" d="M1 11.5h9.5V21H1z" /><path fill="#ffb900" d="M11.5 11.5H21V21h-9.5z" />
+  </svg>
+);
+
 export function Login() {
   const params = new URLSearchParams(location.search);
-  const [email, setEmail] = useState(storage.get<string>('garba:email') ?? '');
-  const [code, setCode] = useState('');
-  const [otpId, setOtpId] = useState<string | null>(null);
-  const [busy, setBusy] = useState<'' | 'google' | 'otp'>('');
+  const [providers, setProviders] = useState<Provider[]>(['google']);
+  const [busy, setBusy] = useState<Provider | ''>('');
   const [error, setError] = useState(params.get('error') ?? '');
-  const otpRef = useRef<HTMLInputElement>(null);
+  const linkToken = storage.get<string>('garba:link');
 
-  const cleanEmail = email.trim().toLowerCase();
+  useEffect(() => { enabledProviders().then((p) => p.length && setProviders(p)); }, []);
 
-  async function google() {
-    setBusy('google'); setError('');
+  async function go(p: Provider) {
+    setBusy(p); setError('');
     try {
-      await startGoogleSignIn();
+      await startSignIn(p);
     } catch (e) {
       setError((e as Error).message); setBusy('');
     }
   }
 
-  async function sendCode() {
-    setBusy('otp'); setError('');
-    try {
-      const r = await pbCall(() => pb.collection('users').requestOTP(cleanEmail));
-      storage.set('garba:email', cleanEmail);
-      setOtpId(r.otpId); setCode('');
-      setTimeout(() => otpRef.current?.focus(), 50);
-    } catch (e) {
-      setError((e as Error).message);
-    } finally { setBusy(''); }
-  }
-
-  async function verify(c = code) {
-    if (c.length !== 6 || !otpId || busy) return;
-    setBusy('otp'); setError('');
-    try {
-      await pbCall(() => pb.collection('users').authWithOTP(otpId, c));
-      const me = await afterSignIn();
-      navigate(homeFor(me), true);
-    } catch (e) {
-      setError((e as Error).message.includes('authenticate') ? "That code doesn't match. Check your email and try again." : (e as Error).message);
-      setCode('');
-      otpRef.current?.focus();
-    } finally { setBusy(''); }
-  }
-
-  const onCode = (v: string) => {
-    const c = v.replace(/\D/g, '').slice(0, 6);
-    setCode(c);
-    if (c.length === 6) verify(c);
-  };
-
-  const boxes = Array.from({ length: 6 }, (_, i) => code[i] ?? '');
-  const active = otpId ? Math.min(code.length, 5) : -1;
-
   return (
     <div class="screen">
       <Top />
-      <Back onClick={() => (otpId ? setOtpId(null) : navigate('/'))} />
+      <Back onClick={() => navigate('/')} />
       <div style={{ padding: '26px 24px 0' }}>
         <div style={{ font: '700 44px/1 var(--fd)', color: 'var(--pink)' }}>કેમ છો!</div>
         <div class="h1" style={{ marginTop: 8 }}>SIGN IN FOR<br />YOUR PASS</div>
       </div>
 
-      <div style={{ margin: '28px 22px 0', display: 'flex', flexDirection: 'column', gap: 10 }}>
-        <button type="button" class="btn" onClick={google} disabled={!!busy}>
+      <div style={{ margin: '30px 22px 0', display: 'flex', flexDirection: 'column', gap: 14 }}>
+        <button type="button" class="btn" onClick={() => go('google')} disabled={!!busy}>
           <span style={{ display: 'flex', alignItems: 'center', gap: 12 }}><GoogleG />{busy === 'google' ? 'Opening Google…' : 'Continue with Google'}</span>
           <span aria-hidden="true">→</span>
         </button>
-        <span class="hint">Gmail or your @iima.ac.in Google account, whichever is on the Cultcomm list</span>
-      </div>
-
-      <div style={{ margin: '22px 22px 0', display: 'flex', alignItems: 'center', gap: 12 }}>
-        <span style={{ flex: 1, height: 2, background: 'var(--ink)' }} />
-        <span class="label">OR GET AN EMAIL CODE</span>
-        <span style={{ flex: 1, height: 2, background: 'var(--ink)' }} />
-      </div>
-
-      <form
-        style={{ margin: '18px 22px 0', display: 'flex', flexDirection: 'column', gap: 18 }}
-        onSubmit={(e) => { e.preventDefault(); otpId ? verify() : sendCode(); }}
-      >
-        <div class="field">
-          <label class="label" for="email">EMAIL</label>
-          <input
-            id="email" class="input" type="email" inputMode="email" autoComplete="email" autoCapitalize="none" spellcheck={false}
-            placeholder="you@gmail.com" value={email}
-            onInput={(e) => { setEmail(e.currentTarget.value); setOtpId(null); }}
-          />
-        </div>
-        <div class="field">
-          <label class="label" for="otp">6-DIGIT OTP</label>
-          <div class={`otp ${otpId ? '' : 'off'}`}>
-            {boxes.map((d, i) => <div key={i} class={`otp-box ${i === active && !d ? 'on' : ''}`}>{d}</div>)}
-            <input
-              id="otp" ref={otpRef} value={code} disabled={!otpId} inputMode="numeric" autoComplete="one-time-code" maxLength={6} pattern="[0-9]*"
-              aria-label="6-digit code" onInput={(e) => onCode(e.currentTarget.value)}
-            />
-          </div>
-          {otpId && (
-            <span class="hint">
-              Code sent to {cleanEmail}. <button type="button" style={{ textDecoration: 'underline' }} onClick={sendCode} disabled={!!busy}>Resend</button>
-            </span>
-          )}
-        </div>
+        {providers.includes('microsoft') && (
+          <button type="button" class="btn ghost" onClick={() => go('microsoft')} disabled={!!busy}>
+            <span style={{ display: 'flex', alignItems: 'center', gap: 12 }}><MicrosoftM />{busy === 'microsoft' ? 'Opening Microsoft…' : 'Continue with Microsoft'}</span>
+            <span aria-hidden="true">→</span>
+          </button>
+        )}
         {error && <div class="error" role="alert">{error}</div>}
-        <Btn type="submit" variant="ghost" disabled={!!busy || (!otpId && !cleanEmail.includes('@')) || (!!otpId && code.length !== 6)}>
-          {busy === 'otp' ? 'Please wait…' : otpId ? 'Verify' : 'Send code'}
-        </Btn>
-      </form>
+      </div>
+
+      <div style={{ margin: '28px 22px 0', display: 'flex', flexDirection: 'column', gap: 14 }}>
+        {[
+          ['IIMA students, faculty & staff', 'Use your @iima.ac.in account. Your pass is ready the moment you sign in.'],
+          ['Friends & family', 'Use the Gmail your host added, or open the pass link they shared with you.'],
+          ['Exchange guests', 'Use the email your college gave Cultcomm, or the pass link you were sent.'],
+        ].map(([t, d]) => (
+          <div key={t} style={{ display: 'flex', gap: 10 }}>
+            <span class="mirror-dot" style={{ marginTop: 5 }} />
+            <div class="note" style={{ fontSize: 14 }}><b style={{ color: 'var(--ink)' }}>{t}</b><br />{d}</div>
+          </div>
+        ))}
+        {linkToken && <button class="btn ghost small" onClick={() => navigate(`/p/${linkToken}`)}><span>Open my saved pass link</span><span>→</span></button>}
+      </div>
+
       <div style={{ marginTop: 'auto', paddingTop: 36 }}>
         <Zigzag color="var(--yellow)" h={44} />
         <div style={{ height: 'var(--safe-b)', background: 'var(--ink)' }} />

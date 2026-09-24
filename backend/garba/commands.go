@@ -3,17 +3,16 @@ package garba
 import (
 	"fmt"
 	"os"
-	"strings"
 
 	"github.com/pocketbase/pocketbase/core"
 	"github.com/spf13/cobra"
 )
 
-// Commands adds `import` and `seed` to the binary.
+// Commands adds `exchange` and `seed` to the binary.
 func Commands(app core.App, s *Service) []*cobra.Command {
-	importCmd := &cobra.Command{
-		Use:   "import [people.csv]",
-		Short: "Import people (email,name,group[,college][,role]) from a CSV file",
+	exchangeCmd := &cobra.Command{
+		Use:   "exchange [guests.xlsx|guests.csv]",
+		Short: "Import exchange guests (Name, Email, College, Phone) from an Excel or CSV file",
 		Args:  cobra.ExactArgs(1),
 		RunE: func(cmd *cobra.Command, args []string) error {
 			data, err := os.ReadFile(args[0])
@@ -23,7 +22,7 @@ func Commands(app core.App, s *Service) []*cobra.Command {
 			if err := app.RunAllMigrations(); err != nil {
 				return err
 			}
-			res, err := s.ImportPeople(string(data))
+			res, err := s.ImportExchange(args[0], data)
 			if err != nil {
 				return err
 			}
@@ -37,41 +36,47 @@ func Commands(app core.App, s *Service) []*cobra.Command {
 
 	seedCmd := &cobra.Command{
 		Use:   "seed",
-		Short: "Add the demo people and passes from the design mockups",
+		Short: "Add demo people and passes",
 		RunE: func(cmd *cobra.Command, args []string) error {
 			if err := app.RunAllMigrations(); err != nil {
 				return err
 			}
-			s.Mail = func(to, subject, text string) {}
-			if _, err := s.ImportPeople(`email,name,group,college,role
-p25aarav@iima.ac.in,Aarav Shah,pgp1,,
-p24meera@iima.ac.in,Meera Iyer,pgp2,,volunteer
-cultcomm@iima.ac.in,Cultcomm Admin,staff,,admin
-ishaan.m@spjimr.org,Ishaan Mehta,exchange,SPJIMR Mumbai,
-`); err != nil {
+			people := []struct{ email, name, role string }{
+				{"p25aarav@iima.ac.in", "Aarav Shah", "member"},
+				{"p26diya@iima.ac.in", "Diya Rao", "member"},
+				{"meena.k@iima.ac.in", "Meena Krishnan", "member"},
+				{"p24meera@iima.ac.in", "Meera Iyer", "volunteer"},
+				{"cultcomm@iima.ac.in", "Cultcomm Admin", "admin"},
+			}
+			for _, p := range people {
+				u, err := s.SignInUser(p.email, p.name)
+				if err != nil {
+					return err
+				}
+				if role(u) != p.role {
+					r := p.role
+					if _, err := s.UpdatePerson(u.Id, PersonUpdate{Role: &r}); err != nil {
+						return err
+					}
+				}
+			}
+			if _, err := s.ImportExchange("exchange.csv", []byte("Name,Email,College,Phone\nIshaan Mehta,ishaan.m@spjimr.org,SPJIMR Mumbai,+91 98200 00000\nTara Singh,,XLRI Jamshedpur,\n")); err != nil {
 				return err
 			}
 			aarav, err := app.FindAuthRecordByEmail("users", "p25aarav@iima.ac.in")
 			if err != nil {
 				return err
 			}
-			if me, _ := s.Me(aarav); len(me.Sent) == 0 {
-				if _, err := s.SendPass(aarav, "Kabir Desai", "+91 98250 11223", "http://localhost:8090"); err != nil {
-					return err
-				}
-				riya, err := s.SendPass(aarav, "Riya Patel", "riya.patel@gmail.com", "http://localhost:8090")
-				if err != nil {
-					return err
-				}
-				if _, err := s.Claim(riya.ClaimURL[strings.LastIndex(riya.ClaimURL, "/")+1:], "Riya Patel"); err != nil {
-					return err
+			if me, _ := s.Me(aarav); len(me.Guests) == 0 {
+				for _, g := range [][2]string{{"Riya Patel", "riya.patel@gmail.com"}, {"Kabir Desai", ""}, {"Sunita Shah", ""}} {
+					if _, err := s.AddGuest(aarav, g[0], g[1]); err != nil {
+						return err
+					}
 				}
 			}
-			fmt.Println("Demo data ready. Sign in with an email code (printed in the server log without SMTP):")
-			fmt.Println("  p25aarav@iima.ac.in  student    ishaan.m@spjimr.org  exchange guest")
-			fmt.Println("  p24meera@iima.ac.in  volunteer  cultcomm@iima.ac.in  admin")
+			fmt.Println("Demo data ready: p25aarav (student, 3 guests), p26diya (PGP1), meena.k (faculty), p24meera (volunteer), cultcomm (admin) @iima.ac.in; exchange guest ishaan.m@spjimr.org.")
 			return nil
 		},
 	}
-	return []*cobra.Command{importCmd, seedCmd}
+	return []*cobra.Command{exchangeCmd, seedCmd}
 }
