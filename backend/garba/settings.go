@@ -46,7 +46,7 @@ func defaultSettings() Settings {
 			Venue:      "Football Ground",
 			VenueShort: "Football Ground",
 			TimeLabel:  "8 PM",
-			DressCode:  "Dress code: chaniya choli, kediyu, kurta..",
+			DressCode:  "Dress code: chaniya choli, kediyu, kurta.",
 			Gates:      2,
 		},
 		Limits:       Limits{PGP1: 0, Student: 3, Faculty: 3},

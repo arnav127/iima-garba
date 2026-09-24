@@ -22,7 +22,7 @@ import './styles.css';
 
 const FALLBACK_EVENT: EventInfo = {
   title: 'Garba Night', dateLabel: 'Fri 16 Oct', venue: 'Football Ground', venueShort: 'Football Ground', timeLabel: '8 PM',
-  dressCode: 'Dress code: chaniya choli, kediyu, kurta..', gates: 2,
+  dressCode: 'Dress code: chaniya choli, kediyu, kurta.', gates: 2,
 };
 
 /** Loads a screen's code only when it's first needed (the scanner and dashboard are big and only for Cultcomm). */
