@@ -1,0 +1,236 @@
+<!DOCTYPE html>
+<html>
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<script src="./support.js"></script>
+</head>
+<body>
+<x-dc>
+<helmet data-dc-atomics><meta name="design_doc_mode" content="canvas"><link rel="preconnect" href="https://fonts.googleapis.com"><link href="https://fonts.googleapis.com/css2?family=Anek+Gujarati:wght@500;600;700;800&family=Baloo+Bhai+2:wght@600;800&family=Hind+Vadodara:wght@400;500;600;700&family=Mukta+Vaani:wght@400;500;600;700&family=Rozha+One&display=swap" rel="stylesheet"><style>body{margin:0;background:#ece4d6;font-family:'Hind Vadodara',system-ui,sans-serif}a{color:#b5122b}a:hover{color:#7d0c1d}input{outline:none}input::placeholder{color:#a39a8c}.dv-turn{padding:40px 44px 32px;border-bottom:1px solid rgba(0,0,0,.08);scroll-margin-top:16px}.dv-thd{display:flex;align-items:baseline;gap:10px;margin:0 0 8px}.dv-tid{font:600 10px ui-monospace,Menlo,monospace;padding:3px 7px;background:#1a1a1a;color:#fff;border-radius:4px;text-decoration:none}.dv-tname{font:600 13px/1.2 system-ui,sans-serif;color:#1a1a1a}.dv-opts{display:flex;flex-wrap:wrap;gap:56px;align-items:flex-start}.dv-opt{flex:none;display:flex;flex-direction:column;gap:12px;scroll-margin-top:16px}.dv-oid{font:600 10.5px ui-monospace,Menlo,monospace;padding:3px 7px;background:rgba(0,0,0,.08);color:#1a1a1a;border-radius:5px;text-decoration:none}.dv-olabel{display:flex;align-items:baseline;gap:8px;font:400 11px/1.3 system-ui,sans-serif;color:rgba(0,0,0,.55)}.dv-card{max-width:100%;border-radius:46px;box-shadow:0 0 0 9px #16121f,0 20px 50px rgba(20,10,40,.35);overflow:hidden}.dv-next{margin:28px 0 0;font:12px/1.5 system-ui,sans-serif;color:rgba(0,0,0,.5)}</style></helmet>
+<section class="dv-turn" id="t2">
+<div class="dv-thd"><a class="dv-tid" href="#t2">2</a><span class="dv-tname">IIMA Garba Night: 1 night, passes shared by quota, no payments. Direction: Kutch.</span></div>
+<p style="margin:0 0 26px;font:12px/1.5 system-ui,sans-serif;color:rgba(0,0,0,.55);max-width:760px">Use the switch above the phone to change user type. Student: landing → sign in → my pass + share quota → send a pass → QR. Exchange guest: their pass arrives in their name after Cultcomm adds them. Volunteer: gate scanner, tap to cycle results. Turn 1 (with prices, 9 nights) lives in <a href="Garba Passes.dc.html">Garba Passes.dc.html</a>.</p>
+<div class="dv-opts">
+
+<!-- ============ 2b KUTCH ============ -->
+<div class="dv-opt" id="2b"><div class="dv-olabel"><a class="dv-oid" href="#2b">2b</a>Kutch: ivory and black with embroidery borders, mirror work and chaniya stripes in the logo colours, Anek Gujarati</div>
+<div style="display:flex;gap:6px;background:#fff;border-radius:99px;padding:4px;align-self:flex-start">
+<sc-for list="{{ B.roles }}" as="r" hint-placeholder-count="3"><div onClick="{{ r.pick }}" style="cursor:pointer;padding:7px 14px;border-radius:99px;font:600 12px system-ui,sans-serif;background:{{ r.bg }};color:{{ r.fg }}">{{ r.label }}</div></sc-for>
+</div>
+<div class="dv-card" style="width:390px;height:844px;position:relative;background:#f6f0e4;color:#151515;font-family:'Mukta Vaani',sans-serif">
+
+<sc-if value="{{ B.isLanding }}" hint-placeholder-val="{{ true }}">
+<div style="height:44px;display:flex;justify-content:space-between;align-items:center;padding:0 30px;font:600 15px 'Mukta Vaani'">9:41<span style="font-size:13px">5G ▮▮▮</span></div>
+<div style="height:14px;background:repeating-linear-gradient(90deg,#e8317a 0 14px,#f5872a 14px 28px,#f7d23a 28px 42px,#6cc04a 42px 56px,#1aa7a0 56px 70px,#2a5bd7 70px 84px,#8a3fb8 84px 98px)"></div>
+<div style="height:16px;background:linear-gradient(135deg,#e8317a 25%,transparent 25%) -8px 0/16px 16px,linear-gradient(225deg,#e8317a 25%,transparent 25%) -8px 0/16px 16px,linear-gradient(315deg,#e8317a 25%,transparent 25%) 0 0/16px 16px,linear-gradient(45deg,#e8317a 25%,transparent 25%) 0 0/16px 16px,#151515"></div>
+<div style="height:14px;background:radial-gradient(circle,#eef0f5 2.5px,#9aa3b5 3.5px,#f7d23a 4.5px,transparent 5px) 0 0/20px 14px repeat-x,#151515"></div>
+<div style="padding:18px 22px 0;display:flex;justify-content:space-between;align-items:center">
+<img src="assets/cultcomm.jpg" alt="Cultcomm" style="width:52px;height:52px;border-radius:50%;border:2px solid #151515">
+<span style="font:600 12px 'Mukta Vaani';letter-spacing:.16em;text-align:right;line-height:1.3">CULTCOMM<br>IIM AHMEDABAD</span>
+</div>
+<div style="padding:26px 22px 0">
+<div style="font:700 26px/1 'Anek Gujarati';color:#e8317a">ગરબા રાત</div>
+<div style="font:800 86px/0.86 'Anek Gujarati';letter-spacing:-.02em;margin-top:10px;font-stretch:75%">GARBA<br>NIGHT</div>
+<div style="font:800 86px/0.86 'Anek Gujarati';letter-spacing:-.02em;color:transparent;-webkit-text-stroke:2px #151515;font-stretch:75%">IIMA</div>
+</div>
+<div style="margin:22px 22px 0;border:2px solid #151515;border-radius:18px;display:grid;grid-template-columns:1fr 1fr 1fr;overflow:hidden">
+<div style="padding:12px;display:flex;flex-direction:column;border-right:2px solid #151515"><span style="font:600 11px 'Mukta Vaani';letter-spacing:.1em;color:#6b6356">DATE</span><span style="font:700 17px 'Anek Gujarati'">Sat 17 Oct</span></div>
+<div style="padding:12px;display:flex;flex-direction:column;border-right:2px solid #151515"><span style="font:600 11px 'Mukta Vaani';letter-spacing:.1em;color:#6b6356">VENUE</span><span style="font:700 17px 'Anek Gujarati'">LKP</span></div>
+<div style="padding:12px;display:flex;flex-direction:column"><span style="font:600 11px 'Mukta Vaani';letter-spacing:.1em;color:#6b6356">FROM</span><span style="font:700 17px 'Anek Gujarati'">8 PM</span></div>
+</div>
+<div style="margin:14px 22px 0;display:flex;gap:10px;align-items:center;font:400 14px/1.4 'Mukta Vaani';color:#3a352d"><span style="width:12px;height:12px;flex:none;border-radius:50%;background:radial-gradient(circle at 35% 30%,#fff,#aab2c4 45%,#5d6478);box-shadow:0 0 0 2px #151515"></span>Dress code: chaniya choli, kediyu, kurta. Dandiyas provided.</div>
+<div style="position:absolute;left:22px;right:22px;bottom:34px;display:flex;flex-direction:column;gap:12px">
+<div onClick="{{ B.goLogin }}" style="cursor:pointer;height:58px;border-radius:14px;background:#151515;color:#f6f0e4;display:flex;align-items:center;justify-content:space-between;padding:0 22px;font:700 18px 'Anek Gujarati';box-shadow:4px 4px 0 #e8317a">{{ B.landingCta }}<span>→</span></div>
+<div style="text-align:center;font:400 13px 'Mukta Vaani';color:#6b6356">Pass exchange guests: sign in with your college email</div>
+</div>
+</sc-if>
+
+<sc-if value="{{ B.isLogin }}" hint-placeholder-val="{{ false }}">
+<div style="height:44px;display:flex;justify-content:space-between;align-items:center;padding:0 30px;font:600 15px 'Mukta Vaani'">9:41<span style="font-size:13px">5G ▮▮▮</span></div>
+<div onClick="{{ B.goLanding }}" style="cursor:pointer;padding:14px 24px 0;font-size:22px">←</div>
+<div style="padding:26px 24px 0"><div style="font:700 44px/1 'Anek Gujarati';color:#e8317a">કેમ છો!</div><div style="font:800 40px/0.95 'Anek Gujarati';margin-top:8px;font-stretch:75%">SIGN IN FOR<br>YOUR PASS</div></div>
+<div style="margin:30px 22px 0;display:flex;flex-direction:column;gap:18px">
+<div style="display:flex;flex-direction:column;gap:6px"><label style="font:600 12px 'Mukta Vaani';letter-spacing:.1em;color:#6b6356">EMAIL</label><div style="height:54px;border:2px solid #151515;border-radius:14px;background:#fff;display:flex;align-items:center;padding:0 14px;font:500 16px 'Mukta Vaani'">{{ B.email }}</div><span style="font:400 12px 'Mukta Vaani';color:#6b6356">{{ B.emailHint }}</span></div>
+<div style="display:flex;flex-direction:column;gap:6px"><label style="font:600 12px 'Mukta Vaani';letter-spacing:.1em;color:#6b6356">6-DIGIT OTP</label>
+<div style="display:flex;gap:8px"><div style="flex:1;height:54px;border-radius:12px;border:2px solid #151515;background:#fff;display:grid;place-items:center;font:700 22px 'Anek Gujarati'">4</div><div style="flex:1;height:54px;border-radius:12px;border:2px solid #151515;background:#fff;display:grid;place-items:center;font:700 22px 'Anek Gujarati'">8</div><div style="flex:1;height:54px;border-radius:12px;border:2px solid #151515;background:#fff;display:grid;place-items:center;font:700 22px 'Anek Gujarati'">1</div><div style="flex:1;height:54px;border-radius:12px;border:2px solid #151515;background:#fff;display:grid;place-items:center;font:700 22px 'Anek Gujarati'">9</div><div style="flex:1;height:54px;border-radius:12px;border:2px solid #151515;background:#fff;display:grid;place-items:center;font:700 22px 'Anek Gujarati'">0</div><div style="flex:1;height:54px;border-radius:12px;border:2px solid #e8317a;background:#fff"></div></div></div>
+<div onClick="{{ B.goHome }}" style="cursor:pointer;height:58px;border-radius:14px;background:#151515;color:#f6f0e4;display:flex;align-items:center;justify-content:space-between;padding:0 22px;font:700 18px 'Anek Gujarati';box-shadow:4px 4px 0 #e8317a">Verify<span>→</span></div>
+</div>
+<div style="position:absolute;left:0;right:0;bottom:0;height:44px;background:linear-gradient(135deg,#f7d23a 25%,transparent 25%) -8px 0/16px 16px,linear-gradient(225deg,#f7d23a 25%,transparent 25%) -8px 0/16px 16px,linear-gradient(315deg,#f7d23a 25%,transparent 25%) 0 0/16px 16px,linear-gradient(45deg,#f7d23a 25%,transparent 25%) 0 0/16px 16px,#151515"></div>
+</sc-if>
+
+<sc-if value="{{ B.isHome }}" hint-placeholder-val="{{ false }}">
+<div style="height:44px;display:flex;justify-content:space-between;align-items:center;padding:0 30px;font:600 15px 'Mukta Vaani'">9:41<span style="font-size:13px">5G ▮▮▮</span></div>
+<div style="padding:12px 22px 0;display:flex;justify-content:space-between;align-items:center"><div style="display:flex;flex-direction:column"><span style="font:600 13px 'Mukta Vaani';color:#6b6356">Aarav Shah · PGP1</span><span style="font:800 32px/1 'Anek Gujarati';font-stretch:75%">MY PASSES</span></div><img src="assets/cultcomm.jpg" alt="Cultcomm" style="width:40px;height:40px;border-radius:50%;border:2px solid #151515"></div>
+<div onClick="{{ B.goQr }}" style="cursor:pointer;margin:16px 20px 0;background:#151515;color:#f6f0e4;border-radius:20px;overflow:hidden">
+<div style="height:10px;background:repeating-linear-gradient(90deg,#e8317a 0 14px,#f5872a 14px 28px,#f7d23a 28px 42px,#6cc04a 42px 56px,#1aa7a0 56px 70px,#2a5bd7 70px 84px,#8a3fb8 84px 98px)"></div>
+<div style="padding:16px 18px;display:flex;align-items:center;gap:14px">
+<div style="flex:1;display:flex;flex-direction:column;gap:2px"><span style="font:600 11px 'Mukta Vaani';letter-spacing:.12em;color:#6cc04a">● YOUR PASS · READY</span><span style="font:800 26px/1 'Anek Gujarati';font-stretch:75%">GARBA NIGHT</span><span style="font:400 13px 'Mukta Vaani';color:#bdb5a6">Sat 17 Oct · LKP · Tap for QR</span></div>
+<div style="width:58px;height:58px;border-radius:12px;background:#f6f0e4;display:grid;grid-template-columns:repeat(5,1fr);gap:3px;padding:7px;box-sizing:border-box"><sc-for list="{{ miniQrB }}" as="c" hint-placeholder-count="0"><div style="background:{{ c }};border-radius:1px"></div></sc-for></div>
+</div>
+<div style="height:12px;background:radial-gradient(circle,#eef0f5 2.5px,#9aa3b5 3.5px,#e8317a 4.5px,transparent 5px) 0 0/20px 12px repeat-x"></div>
+</div>
+<div style="margin:18px 20px 0;border:2px solid #151515;border-radius:20px;padding:16px 18px;background:#fff;display:flex;align-items:center;gap:16px">
+<div style="font:800 64px/0.8 'Anek Gujarati';color:#e8317a;font-stretch:75%">{{ B.remaining }}</div>
+<div style="flex:1;display:flex;flex-direction:column;gap:6px"><span style="font:600 15px/1.25 'Mukta Vaani'">passes left to share<br><span style="color:#6b6356;font-weight:400">{{ B.quota }} for PGP1 students</span></span><div style="display:flex;gap:4px"><sc-for list="{{ B.slots }}" as="s" hint-placeholder-count="4"><span style="flex:1;height:8px;border-radius:4px;background:{{ s.bgB }}"></span></sc-for></div></div>
+</div>
+<div onClick="{{ B.goSend }}" style="cursor:pointer;margin:12px 20px 0;height:54px;border-radius:14px;background:{{ B.sendBgB }};color:#151515;display:flex;align-items:center;justify-content:space-between;padding:0 20px;font:700 17px 'Anek Gujarati';border:2px solid #151515;box-shadow:4px 4px 0 #151515">Send a pass to a friend<span>+</span></div>
+<div style="padding:22px 22px 8px;font:600 12px 'Mukta Vaani';letter-spacing:.1em;color:#6b6356">SENT</div>
+<div style="margin:0 20px;border-top:2px solid #151515">
+<sc-for list="{{ B.sent }}" as="p" hint-placeholder-count="2"><div style="padding:12px 2px;display:flex;align-items:center;gap:12px;border-bottom:1px solid #d8cfbf">
+<div style="width:36px;height:36px;border-radius:50%;background:{{ p.avBg }};color:#fff;display:grid;place-items:center;font:700 14px 'Anek Gujarati';box-shadow:0 0 0 2px #151515">{{ p.init }}</div>
+<div style="flex:1;min-width:0;display:flex;flex-direction:column"><span style="font:600 15px 'Mukta Vaani'">{{ p.name }}</span><span style="font:400 12px 'Mukta Vaani';color:#6b6356;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">{{ p.contact }}</span></div>
+<span style="font:700 12px 'Mukta Vaani';letter-spacing:.06em;color:{{ p.stFgB }}">{{ p.status }}</span>
+</div></sc-for>
+</div>
+</sc-if>
+
+<sc-if value="{{ B.isGuestHome }}" hint-placeholder-val="{{ false }}">
+<div style="height:44px;display:flex;justify-content:space-between;align-items:center;padding:0 30px;font:600 15px 'Mukta Vaani'">9:41<span style="font-size:13px">5G ▮▮▮</span></div>
+<div style="padding:16px 22px 0"><div style="font:700 22px 'Anek Gujarati';color:#e8317a">પધારો, Ishaan!</div><div style="font:800 40px/0.95 'Anek Gujarati';font-stretch:75%;margin-top:6px">YOU'RE ON<br>THE LIST</div><div style="font:400 14px/1.45 'Mukta Vaani';color:#3a352d;margin-top:10px">Cultcomm added you through the pass exchange with SPJIMR Mumbai.</div></div>
+<div style="margin:20px 20px 0;background:#151515;color:#f6f0e4;border-radius:22px;overflow:hidden">
+<div style="height:16px;background:linear-gradient(135deg,#6cc04a 25%,transparent 25%) -8px 0/16px 16px,linear-gradient(225deg,#6cc04a 25%,transparent 25%) -8px 0/16px 16px,linear-gradient(315deg,#6cc04a 25%,transparent 25%) 0 0/16px 16px,linear-gradient(45deg,#6cc04a 25%,transparent 25%) 0 0/16px 16px,#151515"></div>
+<div style="padding:16px 18px;display:flex;flex-direction:column;gap:12px">
+<div style="display:flex;justify-content:space-between"><span style="font:600 11px 'Mukta Vaani';letter-spacing:.12em;color:#6cc04a">PASS EXCHANGE GUEST</span><span style="font:500 12px ui-monospace,monospace;color:#bdb5a6">GRB-X-0932</span></div>
+<span style="font:800 30px/1 'Anek Gujarati';font-stretch:75%">ISHAAN MEHTA</span>
+<div style="display:grid;grid-template-columns:1fr 1fr;gap:8px;font:400 11px 'Mukta Vaani';color:#bdb5a6;letter-spacing:.06em"><div style="display:flex;flex-direction:column">DATE<b style="font:600 15px 'Mukta Vaani';color:#f6f0e4;letter-spacing:0">Sat 17 Oct</b></div><div style="display:flex;flex-direction:column">ENTRY<b style="font:600 15px 'Mukta Vaani';color:#f6f0e4;letter-spacing:0">Gate 1 · 8 PM</b></div></div>
+<div onClick="{{ B.goQr }}" style="cursor:pointer;height:54px;border-radius:14px;background:#f7d23a;color:#151515;display:flex;align-items:center;justify-content:space-between;padding:0 20px;font:700 17px 'Anek Gujarati'">Show entry QR<span>→</span></div>
+</div>
+</div>
+<div style="margin:16px 22px 0;display:flex;gap:10px;font:400 14px/1.45 'Mukta Vaani';color:#3a352d"><span style="width:12px;height:12px;margin-top:4px;flex:none;border-radius:50%;background:radial-gradient(circle at 35% 30%,#fff,#aab2c4 45%,#5d6478);box-shadow:0 0 0 2px #151515"></span>Carry your college ID. The name must match your pass, and the pass can't be transferred.</div>
+</sc-if>
+
+<sc-if value="{{ B.isSend }}" hint-placeholder-val="{{ false }}">
+<div style="height:44px;display:flex;justify-content:space-between;align-items:center;padding:0 30px;font:600 15px 'Mukta Vaani'">9:41<span style="font-size:13px">5G ▮▮▮</span></div>
+<div onClick="{{ B.goHome }}" style="cursor:pointer;padding:14px 24px 0;font-size:22px">←</div>
+<div style="padding:14px 22px 0"><div style="font:800 40px/0.95 'Anek Gujarati';font-stretch:75%">SEND A PASS</div><div style="font:400 14px/1.45 'Mukta Vaani';color:#3a352d;margin-top:8px">They'll get an email to claim it in their name. You can take it back until they claim it.</div></div>
+<div style="margin:24px 22px 0;display:flex;flex-direction:column;gap:16px">
+<div style="display:flex;flex-direction:column;gap:6px"><label style="font:600 12px 'Mukta Vaani';letter-spacing:.1em;color:#6b6356">FRIEND'S NAME</label><input value="{{ B.fname }}" onChange="{{ B.onName }}" placeholder="As on their ID" style="height:54px;border:2px solid #151515;border-radius:14px;padding:0 14px;font:500 16px 'Mukta Vaani';background:#fff;color:#151515"></div>
+<div style="display:flex;flex-direction:column;gap:6px"><label style="font:600 12px 'Mukta Vaani';letter-spacing:.1em;color:#6b6356">EMAIL OR PHONE</label><input value="{{ B.fcontact }}" onChange="{{ B.onContact }}" placeholder="friend@gmail.com" style="height:54px;border:2px solid #151515;border-radius:14px;padding:0 14px;font:500 16px 'Mukta Vaani';background:#fff;color:#151515"></div>
+</div>
+<div style="margin:18px 22px 0;padding:14px 16px;border-radius:14px;background:#fff;border:2px dashed #151515;display:flex;align-items:center;gap:12px;font:500 14px 'Mukta Vaani'"><span style="font:800 32px/0.8 'Anek Gujarati';color:#e8317a">{{ B.after }}</span>passes left after this one goes out</div>
+<div onClick="{{ B.send }}" style="cursor:pointer;position:absolute;left:22px;right:22px;bottom:34px;height:58px;border-radius:14px;background:{{ B.sendBtnB }};color:#f6f0e4;display:flex;align-items:center;justify-content:space-between;padding:0 22px;font:700 18px 'Anek Gujarati';box-shadow:4px 4px 0 #e8317a">{{ B.sendLabel }}<span>→</span></div>
+</sc-if>
+
+<sc-if value="{{ B.isQr }}" hint-placeholder-val="{{ false }}">
+<div style="position:absolute;inset:0;background:#151515"></div>
+<div style="position:relative;color:#f6f0e4">
+<div style="height:44px;display:flex;justify-content:space-between;align-items:center;padding:0 30px;font:600 15px 'Mukta Vaani'">9:41<span style="font-size:13px">5G ▮▮▮</span></div>
+<div onClick="{{ B.goHome }}" style="cursor:pointer;padding:14px 24px 0;display:flex;gap:12px;align-items:center;font:500 15px 'Mukta Vaani'"><span style="font-size:22px">←</span>Entry pass</div>
+</div>
+<div style="position:relative;margin:18px 22px 0;background:#f6f0e4;border-radius:24px;overflow:hidden">
+<div style="height:16px;background:repeating-linear-gradient(90deg,#e8317a 0 14px,#f5872a 14px 28px,#f7d23a 28px 42px,#6cc04a 42px 56px,#1aa7a0 56px 70px,#2a5bd7 70px 84px,#8a3fb8 84px 98px)"></div>
+<div style="height:16px;background:linear-gradient(135deg,#e8317a 25%,transparent 25%) -8px 0/16px 16px,linear-gradient(225deg,#e8317a 25%,transparent 25%) -8px 0/16px 16px,linear-gradient(315deg,#e8317a 25%,transparent 25%) 0 0/16px 16px,linear-gradient(45deg,#e8317a 25%,transparent 25%) 0 0/16px 16px,#151515"></div>
+<div style="padding:18px 20px 0;display:flex;justify-content:space-between;align-items:flex-end"><div style="font:800 34px/0.9 'Anek Gujarati';font-stretch:75%">GARBA<br>NIGHT</div><div style="text-align:right;font:500 13px/1.35 'Mukta Vaani';color:#3a352d">Sat 17 Oct<br>LKP · 8 PM</div></div>
+<div style="margin:20px auto 0;width:211px;height:211px;border-radius:18px;background:#fff;display:grid;place-items:center;border:3px solid #151515;box-shadow:6px 6px 0 #f7d23a">
+<div style="display:grid;grid-template-columns:repeat(25,7px);grid-auto-rows:7px"><sc-for list="{{ qr2 }}" as="c" hint-placeholder-count="0"><div style="background:{{ c }}"></div></sc-for></div>
+</div>
+<div style="padding:22px 20px 20px;display:grid;grid-template-columns:1.3fr 1fr;gap:6px;font:600 11px 'Mukta Vaani';letter-spacing:.1em;color:#6b6356">
+<div style="display:flex;flex-direction:column">NAME<b style="font:700 17px 'Anek Gujarati';letter-spacing:0;color:#151515">{{ B.qrName }}</b></div>
+<div style="display:flex;flex-direction:column">TYPE<b style="font:700 17px 'Anek Gujarati';letter-spacing:0;color:#151515">{{ B.qrType }}</b></div>
+</div>
+<div style="height:14px;background:radial-gradient(circle,#eef0f5 2.5px,#9aa3b5 3.5px,#f7d23a 4.5px,transparent 5px) 0 0/20px 14px repeat-x,#151515"></div>
+</div>
+</sc-if>
+
+<sc-if value="{{ B.isScan }}" hint-placeholder-val="{{ false }}">
+<div style="position:absolute;inset:0;background:repeating-linear-gradient(45deg,#1d1d1d 0 10px,#181818 10px 20px)"></div>
+<div style="position:absolute;top:220px;left:0;right:0;text-align:center;font:500 11px ui-monospace,monospace;color:rgba(246,240,228,.4)">live camera feed</div>
+<div style="position:relative;height:44px;display:flex;justify-content:space-between;align-items:center;padding:0 30px;font:600 15px 'Mukta Vaani';color:#f6f0e4">9:41<span style="font-size:13px">5G ▮▮▮</span></div>
+<div style="position:relative;padding:10px 20px 0;display:flex;justify-content:space-between;color:#151515"><div style="padding:8px 14px;border-radius:10px;background:#f7d23a;font:700 13px 'Mukta Vaani'">GATE 1 · VOLUNTEER</div><div style="padding:8px 14px;border-radius:10px;background:#f6f0e4;font:700 13px 'Mukta Vaani'">{{ B.scanCount }} IN</div></div>
+<div style="position:absolute;top:130px;left:75px;width:240px;height:240px;border:3px solid #f6f0e4;border-radius:24px;box-shadow:0 0 0 6px #151515,0 0 0 9px #e8317a"></div>
+<div style="position:absolute;left:0;right:0;bottom:0;background:#f6f0e4;border-radius:28px 28px 0 0;overflow:hidden">
+<div style="height:14px;background:{{ B.scan.stripe }}"></div>
+<div style="padding:18px 22px 34px">
+<div style="display:flex;align-items:center;gap:14px"><div style="width:56px;height:56px;border-radius:14px;background:{{ B.scan.bg }};color:#fff;display:grid;place-items:center;font:800 28px 'Anek Gujarati';border:2px solid #151515">{{ B.scan.icon }}</div><div style="display:flex;flex-direction:column"><span style="font:800 30px/1 'Anek Gujarati';font-stretch:75%">{{ B.scan.titleU }}</span><span style="font:500 14px 'Mukta Vaani';color:#3a352d">{{ B.scan.sub }}</span></div></div>
+<div style="margin-top:16px;border-top:2px solid #151515;padding-top:12px;display:flex;flex-direction:column"><span style="font:700 18px 'Mukta Vaani'">{{ B.scan.name }}</span><span style="font:400 13px 'Mukta Vaani';color:#6b6356">{{ B.scan.meta }}</span></div>
+<div onClick="{{ B.scanNext }}" style="cursor:pointer;margin-top:14px;height:56px;border-radius:14px;background:#151515;color:#f6f0e4;display:flex;align-items:center;justify-content:space-between;padding:0 22px;font:700 18px 'Anek Gujarati';box-shadow:4px 4px 0 #e8317a">Scan next<span>→</span></div>
+</div>
+</div>
+</sc-if>
+</div></div>
+
+</div>
+<p class="dv-next">Try next: "add a Cultcomm admin screen for uploading the exchange list" · "different quotas for PGP2 and staff"</p>
+</section>
+</x-dc>
+<script type="text/x-dc" data-dc-script>
+class Component extends DCLogic {
+  init() {
+    return { screen: 'landing', role: 'student', fname: '', fcontact: '', scan: 0, scanned: 412,
+      sent: [{ name: 'Riya Patel', contact: 'riya.patel@gmail.com', status: 'CLAIMED' }, { name: 'Kabir Desai', contact: '+91 98250 11223', status: 'SENT' }] };
+  }
+  state = { a: this.init(), b: this.init() };
+  mk(k) {
+    const s = this.state[k];
+    const set = (p) => this.setState(st => ({ [k]: { ...st[k], ...(typeof p === 'function' ? p(st[k]) : p) } }));
+    const quota = 4, remaining = quota - s.sent.length;
+    const guest = s.role === 'guest';
+    const pal = k === 'a' ? { on: '#b5122b', onFg: '#fff5d6' } : { on: '#151515', onFg: '#f6f0e4' };
+    const roles = [['student', 'IIMA student'], ['guest', 'Exchange guest'], ['volunteer', 'Volunteer']].map(([id, label]) => ({
+      label, bg: s.role === id ? pal.on : 'transparent', fg: s.role === id ? pal.onFg : '#555',
+      pick: () => set({ role: id, screen: id === 'volunteer' ? 'scan' : 'landing' })
+    }));
+    const avs = ['#e8317a', '#1f9d55', '#f5872a', '#2a5bd7'];
+    const sent = s.sent.map((p, i) => ({ ...p, init: p.name.split(' ').map(w => w[0]).join('').slice(0, 2).toUpperCase(), avBg: avs[i % 4],
+      stBg: p.status === 'CLAIMED' ? 'rgba(31,157,85,.14)' : '#fbe7c0', stFg: p.status === 'CLAIMED' ? '#157a41' : '#8a5a00',
+      stFgB: p.status === 'CLAIMED' ? '#1a8a4a' : '#e8317a' }));
+    const slots = Array.from({ length: quota }, (_, i) => {
+      const used = i < s.sent.length;
+      return { bg: used ? '#b5122b' : 'transparent', bs: used ? 'solid' : 'dashed', bgB: used ? '#e8317a' : '#e2d9c8' };
+    });
+    const results = [
+      { bg: '#1f9d55', icon: '✓', title: 'Entry allowed', sub: 'Welcome, khelaiya!', name: 'Aarav Shah', meta: 'PGP1 · Own pass · GRB-0417', stripe: '#1f9d55' },
+      { bg: '#1f9d55', icon: '✓', title: 'Entry allowed', sub: 'Pass exchange guest · check college ID', name: 'Ishaan Mehta', meta: 'SPJIMR Mumbai · GRB-X-0932', stripe: '#1f9d55' },
+      { bg: '#c8323c', icon: '✕', title: 'Already used', sub: 'Scanned at Gate 2 · 8:31 PM', name: 'Riya Patel', meta: 'Guest of Aarav Shah · GRB-0418', stripe: '#c8323c' }
+    ];
+    const r = results[s.scan % 3];
+    const scan = { ...r, titleU: r.title.toUpperCase(), stripe: `repeating-linear-gradient(90deg,${r.bg} 0 12px,#151515 12px 16px)` };
+    const canSend = remaining > 0;
+    return {
+      roles, sent, slots, quota, remaining, after: Math.max(remaining - 1, 0),
+      isLanding: s.screen === 'landing', isLogin: s.screen === 'login', isHome: s.screen === 'home' && !guest,
+      isGuestHome: s.screen === 'home' && guest, isSend: s.screen === 'send', isQr: s.screen === 'qr', isScan: s.screen === 'scan',
+      landingCta: guest ? 'Collect my exchange pass' : 'Sign in to get your pass',
+      email: guest ? 'ishaan.m@spjimr.org' : 'p25aarav@iima.ac.in',
+      emailHint: guest ? 'Use the email your college sent to Cultcomm' : 'IIMA students and staff: use your @iima.ac.in email',
+      qrName: guest ? 'Ishaan Mehta' : 'Aarav Shah', qrType: guest ? 'Exchange' : 'PGP1',
+      goLanding: () => set({ screen: 'landing' }), goLogin: () => set({ screen: 'login' }), goHome: () => set({ screen: 'home' }),
+      goSend: () => canSend && set({ screen: 'send', fname: '', fcontact: '' }), goQr: () => set({ screen: 'qr' }),
+      fname: s.fname, fcontact: s.fcontact,
+      onName: (e) => set({ fname: e.target.value }), onContact: (e) => set({ fcontact: e.target.value }),
+      send: () => canSend && set(p => ({ screen: 'home', sent: [{ name: p.fname.trim() || 'Nisha Joshi', contact: p.fcontact.trim() || 'nisha.j@gmail.com', status: 'SENT' }, ...p.sent] })),
+      sendLabel: canSend ? 'Send pass' : 'No passes left',
+      sendBg: canSend ? '#b5122b' : '#b9a99a', sendBgB: canSend ? '#f7d23a' : '#e2d9c8', sendBtnB: canSend ? '#151515' : '#8f887c',
+      scan, scanCount: s.scanned, scanNext: () => set(p => ({ scan: p.scan + 1, scanned: p.scanned + 1 }))
+    };
+  }
+  qrCells(seed, N, dark) {
+    let s = seed; const out = [];
+    const rnd = () => (s = (s * 9301 + 49297) % 233280) / 233280;
+    const finder = (r, c) => {
+      for (const [or, oc] of [[0, 0], [0, N - 7], [N - 7, 0]]) {
+        const y = r - or, x = c - oc;
+        if (y >= 0 && y < 7 && x >= 0 && x < 7) return (y === 0 || y === 6 || x === 0 || x === 6 || (y > 1 && y < 5 && x > 1 && x < 5)) ? 1 : 0;
+        if (y >= -1 && y <= 7 && x >= -1 && x <= 7) return 0;
+      }
+      return -1;
+    };
+    for (let r = 0; r < N; r++) for (let c = 0; c < N; c++) {
+      const f = finder(r, c);
+      out.push((f === -1 ? rnd() > 0.52 : f === 1) ? dark : 'transparent');
+    }
+    return out;
+  }
+  renderVals() {
+    const mini = (seed, col) => { let s = seed; return Array.from({ length: 25 }, () => ((s = (s * 9301 + 49297) % 233280) / 233280) > 0.45 ? col : 'transparent'); };
+    return {
+      B: this.mk('b'),
+      qr2: this.qrCells(11, 25, '#151515'),
+      miniQrB: mini(5, '#151515')
+    };
+  }
+}
+</script>
+</body>
+</html>
