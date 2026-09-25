@@ -1,7 +1,8 @@
 import type { ComponentChildren, JSX } from 'preact';
 import { useEffect, useMemo, useState } from 'preact/hooks';
 import { encode } from 'uqr';
-import { asset, toastStore } from '../lib.ts';
+import logoUrl from '../assets/cultcomm-160.webp';
+import { toastStore } from '../lib.ts';
 
 export const Rainbow = ({ h = 14 }: { h?: number }) => <div class="rainbow" style={{ height: h }} />;
 
@@ -14,8 +15,10 @@ export const Mirrors = ({ color = 'var(--yellow)', h = 14, bg }: { color?: strin
   <div class="mirrors" style={{ height: h, '--mc': color, '--mh': `${h}px`, ...(bg ? { '--mb': bg } : {}) } as JSX.CSSProperties} />
 );
 
+// 160 px WebP (6 KB) covers the largest logo (52 px) on 3x screens. Imported so Vite hashes it into
+// /assets/: cached for a year and kept offline by the service worker. The 447 px JPEG stays for app icons.
 export const Logo = ({ size }: { size: number }) => (
-  <img class="logo" src={asset('cultcomm.jpg')} alt="Cultcomm" width={size} height={size} style={{ width: size, height: size }} />
+  <img class="logo" src={logoUrl} alt="Cultcomm" width={size} height={size} style={{ width: size, height: size }} />
 );
 
 export const Top = () => <div class="top" />;
