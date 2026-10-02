@@ -108,7 +108,7 @@ func apiErr(status int, msg string) *router.ApiError { return router.NewApiError
 
 var (
 	spaceRe   = regexp.MustCompile(`\s+`)
-	studentRe = regexp.MustCompile(`^[a-z]{1,6}\d{2}`)
+	studentRe = regexp.MustCompile(`^[a-z]{1,10}\d{2}`) // longest programme prefix so far: bpgpbaai26…
 	ist       = time.FixedZone("IST", 5*3600+1800)
 )
 
@@ -148,7 +148,7 @@ func (s *Service) isMemberEmail(email string) bool {
 }
 
 // cohortFor classifies an IIMA address: PGP1 prefixes (p26, f26) → pgp1; roll-number style
-// addresses (letters + two digits, e.g. p25aarav, phd23x) → student; anything else → faculty & staff.
+// addresses (up to 10 letters + two digits, e.g. p25aarav, phd23x, bpgpbaai26y) → student; anything else → faculty & staff.
 func (s *Service) cohortFor(email string) string {
 	local := strings.SplitN(email, "@", 2)[0]
 	for _, p := range s.Settings().PGP1Prefixes {

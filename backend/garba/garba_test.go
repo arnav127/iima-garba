@@ -57,6 +57,7 @@ func TestIIMASignInAndCohorts(t *testing.T) {
 		{"p25aarav@iima.ac.in", "student", 3, "student"},
 		{"phd23neha@iima.ac.in", "student", 3, "student"},
 		{"meena.k@iima.ac.in", "faculty", 3, "faculty"},
+		{"bpgpbaai26rommeln@iima.ac.in", "student", 3, "student"},
 	}
 	for _, c := range cases {
 		u := signIn(t, s, c.email, "Some One")
@@ -67,7 +68,7 @@ func TestIIMASignInAndCohorts(t *testing.T) {
 	}
 	// Signing in again doesn't create a second pass.
 	u := signIn(t, s, "p25aarav@iima.ac.in", "Aarav Shah")
-	if n, _ := s.app.CountRecords("passes", nil); n != 5 {
+	if n, _ := s.app.CountRecords("passes", nil); n != 6 {
 		t.Fatalf("passes: %d", n)
 	}
 	if _, err := s.SignInUser("stranger@gmail.com", "X"); err != ErrNotOnList {
