@@ -36,11 +36,14 @@ export function PassQr({ passes, event, start = 0, onBack, refresh }: {
   }, []);
 
   // Pick up "scanned" status quickly while the pass is open.
+  // Every 10 s, and not at all once everyone on this phone is in: with thousands of passes open
+  // in the queue, these checks are most of the traffic on the venue network.
+  const allIn = passes.every((p) => p.enteredAt);
   useEffect(() => {
-    if (!refresh) return;
-    const t = setInterval(() => { if (document.visibilityState === 'visible') refresh(); }, 5000);
+    if (!refresh || allIn) return;
+    const t = setInterval(() => { if (document.visibilityState === 'visible') refresh(); }, 10_000);
     return () => clearInterval(t);
-  }, [refresh]);
+  }, [refresh, allIn]);
 
   useEffect(() => {
     const el = track.current;

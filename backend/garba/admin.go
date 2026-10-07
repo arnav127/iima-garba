@@ -86,13 +86,47 @@ var passFilters = map[string]string{
 	"revoked":  " && status = 'REVOKED'",
 }
 
-func (s *Service) AdminPasses(q, filter string) ([]PassView, error) {
-	f := "(holderName ~ {:q} || code ~ {:q} || holderEmail ~ {:q} || college ~ {:q} || issuer.name ~ {:q} || holder.email ~ {:q})" + passFilters[filter]
-	recs, err := s.app.FindRecordsByFilter("passes", f, "-enteredAt,-seq", 200, 0, dbx.Params{"q": strings.TrimSpace(q)})
+// searchTerm tidies what an admin typed. It is always passed to PocketBase as a bound value ({:q}),
+// never pasted into the filter text, so filters stay a fixed ~150 characters whatever is typed
+// (PocketBase caps filters at 3,500 characters and 200 conditions). The length cap is a safety net.
+func searchTerm(q string) string {
+	q = strings.TrimSpace(q)
+	if r := []rune(q); len(r) > 100 {
+		q = string(r[:100])
+	}
+	return q
+}
+
+// AdminPageSize is how many rows the dashboard lists load at a time ("Show more" fetches the next page).
+const AdminPageSize = 40
+
+// Page is one slice of a dashboard list. More says whether another page follows.
+type Page[T any] struct {
+	Items []T  `json:"items"`
+	More  bool `json:"more"`
+}
+
+// page trims the one extra row fetched to learn whether more follow.
+func page[T any](rows []T) ([]T, bool) {
+	if len(rows) > AdminPageSize {
+		return rows[:AdminPageSize], true
+	}
+	return rows, false
+}
+
+func (s *Service) AdminPasses(q, filter string, offset int) (*Page[PassView], error) {
+	q = searchTerm(q)
+	// Without a search term, skip the text matching (and its joins) entirely.
+	f := "id != ''"
+	if q != "" {
+		f = "(holderName ~ {:q} || code ~ {:q} || holderEmail ~ {:q} || college ~ {:q} || issuer.name ~ {:q} || holder.email ~ {:q})"
+	}
+	recs, err := s.app.FindRecordsByFilter("passes", f+passFilters[filter], "-enteredAt,-seq", AdminPageSize+1, max(offset, 0), dbx.Params{"q": q})
 	if err != nil {
 		return nil, err
 	}
-	return s.views(s.app, recs, false), nil
+	recs, more := page(recs)
+	return &Page[PassView]{Items: s.views(s.app, recs, false), More: more}, nil
 }
 
 type AdminPerson struct {
@@ -101,12 +135,18 @@ type AdminPerson struct {
 	Limit  int `json:"limit"`
 }
 
-func (s *Service) guestCounts() (map[string]int, error) {
+// guestCounts returns how many active guests each of the given people has added (uses the issuer index).
+func (s *Service) guestCounts(ids ...any) (map[string]int, error) {
 	var counts []struct {
 		Issuer string `db:"issuer"`
 		N      int    `db:"n"`
 	}
-	if err := s.app.DB().NewQuery("SELECT issuer, COUNT(*) AS n FROM passes WHERE issuer != '' AND status = 'ACTIVE' GROUP BY issuer").All(&counts); err != nil {
+	if len(ids) == 0 {
+		return map[string]int{}, nil
+	}
+	err := s.app.DB().Select("issuer", "COUNT(*) AS n").From("passes").
+		Where(dbx.And(dbx.In("issuer", ids...), dbx.HashExp{"status": "ACTIVE"})).GroupBy("issuer").All(&counts)
+	if err != nil {
 		return nil, err
 	}
 	out := map[string]int{}
@@ -120,12 +160,22 @@ func (s *Service) person(u *core.Record, counts map[string]int) AdminPerson {
 	return AdminPerson{Me: toMe(u), Guests: counts[u.Id], Limit: s.GuestLimit(u)}
 }
 
-func (s *Service) AdminPeople(q string) ([]AdminPerson, error) {
-	recs, err := s.app.FindRecordsByFilter("users", "name ~ {:q} || email ~ {:q}", "name", 200, 0, dbx.Params{"q": strings.TrimSpace(q)})
+func (s *Service) AdminPeople(q string, offset int) (*Page[AdminPerson], error) {
+	q = searchTerm(q)
+	f := "id != ''"
+	if q != "" {
+		f = "name ~ {:q} || email ~ {:q}"
+	}
+	recs, err := s.app.FindRecordsByFilter("users", f, "name,id", AdminPageSize+1, max(offset, 0), dbx.Params{"q": q})
 	if err != nil {
 		return nil, err
 	}
-	counts, err := s.guestCounts()
+	recs, more := page(recs)
+	ids := make([]any, 0, len(recs))
+	for _, u := range recs {
+		ids = append(ids, u.Id)
+	}
+	counts, err := s.guestCounts(ids...)
 	if err != nil {
 		return nil, err
 	}
@@ -133,7 +183,7 @@ func (s *Service) AdminPeople(q string) ([]AdminPerson, error) {
 	for _, u := range recs {
 		out = append(out, s.person(u, counts))
 	}
-	return out, nil
+	return &Page[AdminPerson]{Items: out, More: more}, nil
 }
 
 func (s *Service) passByID(tx core.App, id string) (*core.Record, error) {
@@ -235,7 +285,7 @@ func (s *Service) UpdatePerson(id string, in PersonUpdate) (*AdminPerson, error)
 	if err := ensureOwnPass(s.app, u); err != nil { // volunteers and admins get a pass of their own
 		return nil, err
 	}
-	counts, err := s.guestCounts()
+	counts, err := s.guestCounts(u.Id)
 	if err != nil {
 		return nil, err
 	}

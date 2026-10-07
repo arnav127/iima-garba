@@ -372,9 +372,9 @@ func TestUndoEntry(t *testing.T) {
 	if m := me(t, s, u); m.Pass.EnteredAt != nil {
 		t.Fatalf("still entered: %+v", m.Pass)
 	}
-	list, _ := s.AdminPasses("", "entered")
-	if len(list) != 0 {
-		t.Fatalf("still in entered list: %d", len(list))
+	list, _ := s.AdminPasses("", "entered", 0)
+	if len(list.Items) != 0 {
+		t.Fatalf("still in entered list: %d", len(list.Items))
 	}
 	r, _ = s.Scan(admin, QRPayload(p.Key, p.ID, s.Now()), 1)
 	if r.Outcome != "allowed" {
@@ -408,5 +408,67 @@ func TestStaffGetOwnPass(t *testing.T) {
 	// Non-IIMA people can't be given a plain pass this way.
 	if _, err := s.GrantAccess("stranger@gmail.com", "member"); err == nil {
 		t.Fatal("member grant for a stranger should fail")
+	}
+}
+
+func TestAdminListsArePaged(t *testing.T) {
+	s, _ := setup(t)
+	total := AdminPageSize + 7
+	for i := 0; i < total; i++ {
+		signIn(t, s, fmt.Sprintf("p25user%03d@iima.ac.in", i), fmt.Sprintf("User %03d", i))
+	}
+	host := signIn(t, s, "p25user000@iima.ac.in", "User 000")
+	if _, err := s.AddGuest(host, "Riya Patel", ""); err != nil {
+		t.Fatal(err)
+	}
+
+	seen := map[string]bool{}
+	for offset, pages := 0, 0; ; pages++ {
+		p, err := s.AdminPasses("", "own", offset)
+		if err != nil {
+			t.Fatal(err)
+		}
+		for _, v := range p.Items {
+			if seen[v.ID] {
+				t.Fatalf("pass %s listed twice", v.Code)
+			}
+			seen[v.ID] = true
+		}
+		offset += len(p.Items)
+		if !p.More {
+			if pages != 1 || len(seen) != total {
+				t.Fatalf("pages=%d passes=%d", pages+1, len(seen))
+			}
+			break
+		}
+		if len(p.Items) != AdminPageSize {
+			t.Fatalf("page size %d", len(p.Items))
+		}
+	}
+
+	people, err := s.AdminPeople("", 0)
+	if err != nil || len(people.Items) != AdminPageSize || !people.More {
+		t.Fatalf("people: %v %d %v", err, len(people.Items), people.More)
+	}
+	if people.Items[0].Email != "p25user000@iima.ac.in" || people.Items[0].Guests != 1 {
+		t.Fatalf("first person: %+v", people.Items[0])
+	}
+	rest, _ := s.AdminPeople("", AdminPageSize)
+	if len(rest.Items) != 7 || rest.More {
+		t.Fatalf("second page: %d %v", len(rest.Items), rest.More)
+	}
+	// A huge or odd search can't break the query: it is a bound value, capped at 100 characters.
+	for _, q := range []string{strings.Repeat("x", 5000), strings.Repeat("ગ", 300), `%' || 1=1 || "_`, "a && b || (c)"} {
+		if p, err := s.AdminPasses(q, "waiting", 0); err != nil || len(p.Items) != 0 {
+			t.Fatalf("passes search %.20q: %v %d", q, err, len(p.Items))
+		}
+		if p, err := s.AdminPeople(q, 0); err != nil || len(p.Items) != 0 {
+			t.Fatalf("people search %.20q: %v %d", q, err, len(p.Items))
+		}
+	}
+	// Search still narrows across everything, not just the first page.
+	found, _ := s.AdminPasses("User 04", "", 0)
+	if len(found.Items) != 7 || found.More {
+		t.Fatalf("search: %d", len(found.Items))
 	}
 }

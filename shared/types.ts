@@ -112,6 +112,12 @@ export interface AdminStats {
   recent: { name: string; code: string; kind: PassKind; gate: number; at: number }[];
 }
 
+/** One slice of a dashboard list; `more` says whether "Show more" has anything left to fetch. */
+export interface Page<T> {
+  items: T[];
+  more: boolean;
+}
+
 export interface AdminPerson extends Me {
   guests: number;
   limit: number;

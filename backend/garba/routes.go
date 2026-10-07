@@ -3,6 +3,7 @@ package garba
 import (
 	"io"
 	"os"
+	"strconv"
 	"strings"
 
 	"github.com/pocketbase/pocketbase/apis"
@@ -152,11 +153,14 @@ func Register(app core.App) *Service {
 		})
 		adm.GET("/passes", func(e *core.RequestEvent) error {
 			q := e.Request.URL.Query()
-			out, err := s.AdminPasses(q.Get("q"), q.Get("filter"))
+			offset, _ := strconv.Atoi(q.Get("offset"))
+			out, err := s.AdminPasses(q.Get("q"), q.Get("filter"), offset)
 			return reply(e, out, err)
 		})
 		adm.GET("/people", func(e *core.RequestEvent) error {
-			out, err := s.AdminPeople(e.Request.URL.Query().Get("q"))
+			q := e.Request.URL.Query()
+			offset, _ := strconv.Atoi(q.Get("offset"))
+			out, err := s.AdminPeople(q.Get("q"), offset)
 			return reply(e, out, err)
 		})
 		adm.POST("/people/{id}", func(e *core.RequestEvent) error {

@@ -1,7 +1,7 @@
 import { useEffect, useRef, useState } from 'preact/hooks';
 import {
   GROUP_LABEL, MEMBER_GROUPS, TONES, toneOfKind,
-  type AdminPerson, type AdminStats, type Group, type ImportResult, type MeResponse, type PassView, type Role, type Settings,
+  type AdminPerson, type AdminStats, type Group, type ImportResult, type MeResponse, type Page, type PassView, type Role, type Settings,
 } from '../../../shared/types.ts';
 import { Btn, ConfirmBtn, Icon, Logo, Mirrors, Rainbow, Sheet, Spinner, Top } from '../components/ui.tsx';
 import { api, initials, istTime, navigate, onPassesChange, pb, pbCall, storage, toast, toastError } from '../lib.ts';
@@ -62,6 +62,46 @@ function useDebounced<T>(value: T, ms: number): T {
   return v;
 }
 
+/**
+ * Loads a dashboard list one page at a time (the server sends 40 rows per page) so opening a tab
+ * never downloads thousands of rows. `path` already carries the search and filter; changing it starts over.
+ */
+function usePaged<T>(path: string) {
+  const [items, setItems] = useState<T[] | null>(null);
+  const [more, setMore] = useState(false);
+  const [loading, setLoading] = useState(false);
+  const seq = useRef(0);
+  const fetchPage = (offset: number) => {
+    const n = ++seq.current; // ignore replies to older searches
+    setLoading(true);
+    api<Page<T>>(`${path}&offset=${offset}`).then((r) => {
+      if (n !== seq.current) return;
+      setItems((cur) => (offset && cur ? [...cur, ...r.items] : r.items));
+      setMore(r.more);
+    }).catch(toastError).finally(() => { if (n === seq.current) setLoading(false); });
+  };
+  useEffect(() => fetchPage(0), [path]);
+  return {
+    items, more, loading,
+    reload: () => fetchPage(0),
+    loadMore: () => fetchPage(items?.length ?? 0),
+    /** Updates rows already on screen without re-fetching (keeps the pages loaded so far). */
+    patch: (fn: (item: T) => T) => setItems((cur) => cur && cur.map(fn)),
+  };
+}
+
+function ShowMore({ list, noun }: { list: { items: unknown[] | null; more: boolean; loading: boolean; loadMore: () => void }; noun: string }) {
+  if (!list.items || !list.more) return null;
+  return (
+    <div style={{ margin: '14px 20px 0' }}>
+      <button class="btn ghost small" style={{ justifyContent: 'center' }} disabled={list.loading} onClick={list.loadMore}>
+        {list.loading ? 'Loading…' : `Show more ${noun}`}
+      </button>
+      <div class="hint" style={{ marginTop: 8, textAlign: 'center' }}>Showing {list.items.length}. Search to find someone faster.</div>
+    </div>
+  );
+}
+
 // ---------- Live ----------
 
 function Live({ me }: { me: MeResponse }) {
@@ -70,7 +110,8 @@ function Live({ me }: { me: MeResponse }) {
     let t: ReturnType<typeof setTimeout> | undefined;
     const load = () => api<AdminStats>('/admin/stats').then(setS).catch(toastError);
     load();
-    const unsub = onPassesChange(() => { clearTimeout(t); t = setTimeout(load, 400); });
+    // At most one refresh every 2 s, however fast scans arrive.
+    const unsub = onPassesChange(() => { t ??= setTimeout(() => { t = undefined; load(); }, 2000); });
     const poll = setInterval(load, 30_000);
     return () => { unsub(); clearInterval(poll); clearTimeout(t); };
   }, []);
@@ -165,17 +206,11 @@ function passStatus(p: PassView): { label: string; color: string } {
 function PassList({ filter: fixed }: { filter?: string }) {
   const [q, setQ] = useState('');
   const [filter, setFilter] = useState(fixed ?? '');
-  const [list, setList] = useState<PassView[] | null>(null);
   const [sel, setSel] = useState<PassView | null>(null);
   const [busy, setBusy] = useState(false);
-  const dq = useDebounced(q, 200);
-  const seq = useRef(0);
-
-  const load = () => {
-    const n = ++seq.current;
-    api<PassView[]>(`/admin/passes?q=${encodeURIComponent(dq)}&filter=${filter}`).then((r) => { if (n === seq.current) setList(r); }).catch(toastError);
-  };
-  useEffect(load, [dq, filter]);
+  const dq = useDebounced(q, 300);
+  const paged = usePaged<PassView>(`/admin/passes?q=${encodeURIComponent(dq)}&filter=${filter}`);
+  const list = paged.items;
 
   async function act(path: string, msg: string) {
     if (!sel) return;
@@ -184,14 +219,14 @@ function PassList({ filter: fixed }: { filter?: string }) {
       await api(`/admin/passes/${sel.id}/${path}`, { body: {} });
       toast(msg);
       setSel(null);
-      load();
+      paged.reload();
     } catch (e) { toastError(e); } finally { setBusy(false); }
   }
 
   return (
     <>
       <div style={{ margin: '16px 20px 0' }}>
-        <input class="input" type="search" placeholder="Search name, code, email, college, added by" value={q} onInput={(e) => setQ(e.currentTarget.value)} />
+        <input class="input" type="search" placeholder="Search name, code, email, college, added by" maxLength={100} value={q} onInput={(e) => setQ(e.currentTarget.value)} />
       </div>
       {!fixed && (
         <div style={{ margin: '10px 20px 0', display: 'flex', gap: 6, overflowX: 'auto', scrollbarWidth: 'none' }}>
@@ -216,8 +251,8 @@ function PassList({ filter: fixed }: { filter?: string }) {
             </button>
           );
         })}
-        {list && list.length >= 200 && <div class="row hint">Showing the first 200. Search to narrow down.</div>}
       </div>
+      <ShowMore list={paged} noun="passes" />
       {sel && (
         <Sheet onClose={() => setSel(null)} stripe={TONES[sel.tone].color}>
           <div style={{ display: 'flex', flexDirection: 'column', gap: 2 }}>
@@ -241,16 +276,14 @@ const Passes = () => <PassList />;
 
 function People({ meId }: { meId: string }) {
   const [q, setQ] = useState('');
-  const [list, setList] = useState<AdminPerson[] | null>(null);
   const [sel, setSel] = useState<AdminPerson | null>(null);
   const [limit, setLimit] = useState(0);
   const [email, setEmail] = useState('');
   const [role, setRole] = useState<Role>('volunteer');
   const [busy, setBusy] = useState(false);
-  const dq = useDebounced(q, 200);
-
-  const load = () => { api<AdminPerson[]>(`/admin/people?q=${encodeURIComponent(dq)}`).then(setList).catch(toastError); };
-  useEffect(load, [dq]);
+  const dq = useDebounced(q, 300);
+  const paged = usePaged<AdminPerson>(`/admin/people?q=${encodeURIComponent(dq)}`);
+  const list = paged.items;
 
   const open = (p: AdminPerson) => { setSel(p); setLimit(p.limit); };
 
@@ -261,7 +294,7 @@ function People({ meId }: { meId: string }) {
       const p = await api<AdminPerson>(`/admin/people/${sel.id}`, { body });
       setSel(p); setLimit(p.limit);
       toast(msg);
-      load();
+      paged.patch((x) => (x.id === p.id ? p : x));
     } catch (e) { toastError(e); } finally { setBusy(false); }
   }
 
@@ -272,7 +305,7 @@ function People({ meId }: { meId: string }) {
       const p = await api<AdminPerson>('/admin/access', { body: { email, role } });
       toast(`${p.name} is now ${role === 'admin' ? 'an admin' : 'a volunteer'}`);
       setEmail('');
-      load();
+      paged.reload();
     } catch (err) { toastError(err); } finally { setBusy(false); }
   }
 
@@ -292,7 +325,7 @@ function People({ meId }: { meId: string }) {
 
       <div class="dash-col">
       <div style={{ margin: '16px 20px 0' }}>
-        <input class="input" type="search" placeholder="Search people by name or email" value={q} onInput={(e) => setQ(e.currentTarget.value)} />
+        <input class="input" type="search" placeholder="Search people by name or email" maxLength={100} value={q} onInput={(e) => setQ(e.currentTarget.value)} />
       </div>
       <div style={{ margin: '14px 20px 0', borderTop: '2px solid var(--ink)' }}>
         {!list && <Spinner />}
@@ -305,6 +338,7 @@ function People({ meId }: { meId: string }) {
           </button>
         ))}
       </div>
+      <ShowMore list={paged} noun="people" />
       </div>
 
       {sel && (
