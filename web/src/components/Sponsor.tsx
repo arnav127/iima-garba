@@ -1,4 +1,5 @@
 import type { JSX } from 'preact';
+import lockupUrl from '../assets/okkai-lockup.webp';
 
 // Okkai wordmark, from the sponsor's own SVG (Okkai_Logo_Black.svg), cropped to the wordmark.
 // Drawn in the current text colour, so one copy works on ivory and on ink. The tagline in the
@@ -11,10 +12,19 @@ export const OkkaiLogo = ({ height = 24 }: { height?: number }) => (
   </svg>
 );
 
-/** "Styled by Okkai" sponsor credit. */
-export const StyledBy = ({ height = 24, style }: { height?: number; style?: JSX.CSSProperties }) => (
-  <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 10, ...style }}>
+/**
+ * Full lockup with the "Becoming You, Everyday" tagline, from the sponsor's black PNG (the tagline
+ * needs their font, so it can't be drawn from the SVG). Black on transparent: for ivory backgrounds,
+ * and only where it is wide enough for the tagline to be readable (about 180 px and up).
+ */
+export const OkkaiLockup = ({ width = 190 }: { width?: number }) => (
+  <img src={lockupUrl} alt="Okkai · Becoming You, Everyday" width={width} height={Math.round((width * 213) / 600)} style={{ display: 'block', flex: 'none' }} />
+);
+
+/** "Styled by Okkai" sponsor credit. `tagline` shows the full lockup; pass `size` as its width then. */
+export const StyledBy = ({ size = 24, tagline, style }: { size?: number; tagline?: boolean; style?: JSX.CSSProperties }) => (
+  <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 12, ...style }}>
     <span style={{ font: '600 11px var(--fb)', letterSpacing: '.16em', opacity: .7 }}>STYLED BY</span>
-    <OkkaiLogo height={height} />
+    {tagline ? <OkkaiLockup width={size} /> : <OkkaiLogo height={size} />}
   </div>
 );

@@ -136,7 +136,7 @@ function PassCard({ pass, event, now, secsLeft }: { pass: PassView; event: Event
           <div style={{ display: 'flex', flexDirection: 'column', minWidth: 0 }}>NAME<b style={{ font: '700 17px var(--fd)', letterSpacing: 0, color: 'var(--ink)', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{pass.holderName}</b></div>
           <div style={{ display: 'flex', flexDirection: 'column' }}>PASS<b style={{ font: '700 17px var(--fd)', letterSpacing: 0, color: 'var(--ink)' }}>{pass.code}</b></div>
         </div>
-        <StyledBy height={20} style={{ padding: '10px 20px 12px', borderTop: '1px solid var(--line)' }} />
+        <StyledBy size={20} style={{ padding: '10px 20px 12px', borderTop: '1px solid var(--line)' }} />
         <Mirrors color={tone.color} h={14} />
       </div>
     </div>
