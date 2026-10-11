@@ -21,12 +21,9 @@ export const OkkaiLockup = ({ width = 190 }: { width?: number }) => (
   <img src={lockupUrl} alt="Okkai · Becoming You, Everyday" width={width} height={Math.round((width * 213) / 600)} style={{ display: 'block', flex: 'none' }} />
 );
 
-/**
- * "Styled by Okkai" sponsor credit. `tagline` shows the full lockup; pass `size` as its width then.
- * `stacked` puts the label above the logo, left-aligned like the rest of the landing page.
- */
-export const StyledBy = ({ size = 24, tagline, stacked, style }: { size?: number; tagline?: boolean; stacked?: boolean; style?: JSX.CSSProperties }) => (
-  <div style={{ display: 'flex', ...(stacked ? { flexDirection: 'column', alignItems: 'flex-start', gap: 8 } : { alignItems: 'center', justifyContent: 'center', gap: 12 }), ...style }}>
+/** "Styled by Okkai" sponsor credit. `tagline` shows the full lockup; pass `size` as its width then. */
+export const StyledBy = ({ size = 24, tagline, style }: { size?: number; tagline?: boolean; style?: JSX.CSSProperties }) => (
+  <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 12, ...style }}>
     <span style={{ font: '600 11px var(--fb)', letterSpacing: '.16em', opacity: .7 }}>STYLED BY</span>
     {tagline ? <OkkaiLockup width={size} /> : <OkkaiLogo height={size} />}
   </div>
