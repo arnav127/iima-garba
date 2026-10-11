@@ -1,7 +1,7 @@
 // Keeps the app shell available with a weak network at the venue.
 // Hashed assets: cache-first. Pages: network-first with cached fallback. API and dashboard: never cached here.
 // Works under a sub-path (e.g. /garba2026/): everything is relative to this worker's scope.
-const CACHE = 'garba-v3';
+const CACHE = 'garba-v4';
 const BASE = new URL(self.registration.scope).pathname; // "/garba2026/" or "/"
 
 self.addEventListener('install', (e) => {
