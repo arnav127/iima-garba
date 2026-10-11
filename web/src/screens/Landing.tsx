@@ -24,7 +24,7 @@ export function Landing({ event }: { event: EventInfo }) {
       <div style={{ margin: '14px 22px 0', display: 'flex', gap: 10, alignItems: 'center', font: "400 14px/1.4 var(--fb)", color: 'var(--body)' }}>
         <span class="mirror-dot" />{event.dressCode}
       </div>
-      <StyledBy tagline size={190} style={{ margin: '22px 22px 0', justifyContent: 'flex-start' }} />
+      <StyledBy tagline stacked size={170} style={{ margin: '22px 22px 0' }} />
       <div class="bottom">
         <Btn onClick={() => navigate('/login')}>Sign in to get your pass</Btn>
         {guestPass && (
