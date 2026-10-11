@@ -1,5 +1,6 @@
 import type { EventInfo } from '../../../shared/types.ts';
 import { FactGrid, Logo, Mirrors, Rainbow, Zigzag, Btn } from '../components/ui.tsx';
+import { StyledBy } from '../components/Sponsor.tsx';
 import { navigate, storage } from '../lib.ts';
 
 export function Landing({ event }: { event: EventInfo }) {
@@ -23,6 +24,7 @@ export function Landing({ event }: { event: EventInfo }) {
       <div style={{ margin: '14px 22px 0', display: 'flex', gap: 10, alignItems: 'center', font: "400 14px/1.4 var(--fb)", color: 'var(--body)' }}>
         <span class="mirror-dot" />{event.dressCode}
       </div>
+      <StyledBy height={30} style={{ margin: '22px 22px 0', justifyContent: 'flex-start' }} />
       <div class="bottom">
         <Btn onClick={() => navigate('/login')}>Sign in to get your pass</Btn>
         {guestPass && (

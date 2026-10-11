@@ -1,6 +1,7 @@
 import { useEffect, useRef, useState } from 'preact/hooks';
 import { TONES, type EventInfo, type PassView } from '../../../shared/types.ts';
 import { Back, Mirrors, QrCode, Rainbow, Zigzag } from '../components/ui.tsx';
+import { StyledBy } from '../components/Sponsor.tsx';
 import { istTime } from '../lib.ts';
 import { QR_STEP, qrPayload, qrStep, serverNow } from '../qr.ts';
 
@@ -131,10 +132,11 @@ function PassCard({ pass, event, now, secsLeft }: { pass: PassView; event: Event
           </div>
         )}
 
-        <div style={{ padding: '14px 20px 18px', display: 'grid', gridTemplateColumns: '1.4fr 1fr', gap: 6, font: "600 11px var(--fb)", letterSpacing: '.1em', color: 'var(--muted)' }}>
+        <div style={{ padding: '14px 20px 12px', display: 'grid', gridTemplateColumns: '1.4fr 1fr', gap: 6, font: "600 11px var(--fb)", letterSpacing: '.1em', color: 'var(--muted)' }}>
           <div style={{ display: 'flex', flexDirection: 'column', minWidth: 0 }}>NAME<b style={{ font: '700 17px var(--fd)', letterSpacing: 0, color: 'var(--ink)', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{pass.holderName}</b></div>
           <div style={{ display: 'flex', flexDirection: 'column' }}>PASS<b style={{ font: '700 17px var(--fd)', letterSpacing: 0, color: 'var(--ink)' }}>{pass.code}</b></div>
         </div>
+        <StyledBy height={20} style={{ padding: '10px 20px 12px', borderTop: '1px solid var(--line)' }} />
         <Mirrors color={tone.color} h={14} />
       </div>
     </div>
