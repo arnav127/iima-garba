@@ -111,6 +111,19 @@ func Register(app core.App) *Service {
 			out, err := s.PassByLink(e.Request.PathValue("token"))
 			return reply(e, out, err)
 		})
+		// The link itself is the key: whoever holds an alum's pass link can add that alum's guests.
+		g.POST("/p/{token}/guests", func(e *core.RequestEvent) error {
+			b, err := bind(e)
+			if err != nil {
+				return err
+			}
+			out, err := s.AddGuestByLink(e.Request.PathValue("token"), b.Name, b.Email)
+			return reply(e, out, err)
+		})
+		g.POST("/p/{token}/guests/{id}/remove", func(e *core.RequestEvent) error {
+			out, err := s.RemoveGuestByLink(e.Request.PathValue("token"), e.Request.PathValue("id"))
+			return reply(e, out, err)
+		})
 
 		// signed in
 		g.GET("/me", func(e *core.RequestEvent) error {
@@ -210,6 +223,25 @@ func Register(app core.App) *Service {
 			out, err := s.ImportExchange(files[0].OriginalName, data)
 			return reply(e, out, err)
 		}).Bind(apis.BodyLimit(10 << 20))
+		adm.GET("/print", func(e *core.RequestEvent) error {
+			if b := e.Request.URL.Query().Get("batch"); b != "" {
+				out, err := s.PrintBatch(b)
+				return reply(e, out, err)
+			}
+			out, err := s.PrintBatches()
+			return reply(e, out, err)
+		})
+		adm.POST("/print", func(e *core.RequestEvent) error {
+			var in struct {
+				Count int    `json:"count"`
+				Label string `json:"label"`
+			}
+			if err := e.BindBody(&in); err != nil {
+				return apiErr(400, "Invalid request")
+			}
+			out, err := s.GeneratePrintPasses(in.Count, in.Label)
+			return reply(e, out, err)
+		})
 		adm.GET("/exchange-links.csv", func(e *core.RequestEvent) error {
 			data, err := s.ExchangeLinks(appURL(e))
 			return csvFile(e, "exchange-pass-links.csv", data, err)

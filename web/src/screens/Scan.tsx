@@ -78,7 +78,7 @@ export function Scan({ me }: { me: MeResponse }) {
 
   async function check(payload: string) {
     // The QR rotates, so ignore the same pass (not the same text) for a few seconds after reading it.
-    const key = payload.startsWith('G2.') ? payload.split('.')[1] : payload.toUpperCase();
+    const key = /^G[23]\./.test(payload) ? payload.split('.')[1] : payload.toUpperCase();
     const l = last.current;
     if (l.busy || (key === l.key && Date.now() - l.at < 4000)) return;
     l.busy = true; l.key = key; l.at = Date.now();

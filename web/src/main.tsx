@@ -73,10 +73,10 @@ function App() {
     case '/login':
       return <Redirect to={homeFor(me)} />;
     case '/home':
-      if (isGuest(me) && me.pass) return <GuestHome me={me} />;
+      if (isGuest(me) && me.pass && me.limit === 0) return <GuestHome me={me} />;
       return <Home me={me} />;
     case '/add':
-      return isGuest(me) ? <Redirect to="/home" /> : <AddGuest me={me} />;
+      return isGuest(me) && me.limit === 0 ? <Redirect to="/home" /> : <AddGuest me={me} />;
     case '/pass': {
       // Your own pass first, then everyone you added: swipe through them at the gate.
       const passes = [me.pass, ...me.guests].filter((p) => p !== null);

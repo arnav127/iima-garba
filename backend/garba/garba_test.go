@@ -220,7 +220,7 @@ func TestPartialSettings(t *testing.T) {
 	in := SettingsInput{PGP1Prefixes: []string{"P27", " f27 ", "bad prefix!"}}
 	in.Limits.Faculty = &two
 	out, err := s.SaveSettings(in)
-	if err != nil || out.Limits != (Limits{PGP1: 0, Student: 3, Faculty: 2}) || strings.Join(out.PGP1Prefixes, ",") != "p27,f27" || out.Event.Gates != 2 {
+	if err != nil || out.Limits != (Limits{PGP1: 0, Student: 3, Faculty: 2, Alumni: 2}) || strings.Join(out.PGP1Prefixes, ",") != "p27,f27" || out.Event.Gates != 2 {
 		t.Fatalf("settings: %+v %v", out, err)
 	}
 	if u := signIn(t, s, "p27new@iima.ac.in", "New"); group(u) != "pgp1" {
@@ -534,5 +534,189 @@ func TestMicrosoftSignInTrustsOnlyTheProvenDomain(t *testing.T) {
 		if got := microsoftTenant(); got != want {
 			t.Fatalf("tenant %q: %q", in, got)
 		}
+	}
+}
+
+func TestPrintedPasses(t *testing.T) {
+	s, _ := setup(t)
+	gate := signIn(t, s, "p24meera@iima.ac.in", "Meera")
+	b, err := s.GeneratePrintPasses(40, " Support   staff ")
+	if err != nil || len(b.Passes) != 40 || b.Label != "Support staff" {
+		t.Fatalf("generate: %v %+v", err, b)
+	}
+	if b.Passes[0].Name != "Support staff 001" || b.Passes[39].Name != "Support staff 040" || !validCode(b.Passes[0].Code) {
+		t.Fatalf("names: %q %q %q", b.Passes[0].Name, b.Passes[39].Name, b.Passes[0].Code)
+	}
+	seen := map[string]bool{}
+	for _, p := range b.Passes {
+		if seen[p.QR] || !strings.HasPrefix(p.QR, "G3.") {
+			t.Fatalf("QR %q", p.QR)
+		}
+		seen[p.QR] = true
+	}
+	// A second run carries on numbering, and the first can be printed again unchanged.
+	b2, _ := s.GeneratePrintPasses(3, "Support staff")
+	if b2.Passes[0].Name != "Support staff 041" || b2.Batch == b.Batch && len(b2.Passes) != 43 {
+		t.Fatalf("second run: %+v", b2.Passes[0])
+	}
+	again, err := s.PrintBatch(b.Batch)
+	if err != nil || again.Passes[7].QR != b.Passes[7].QR {
+		t.Fatalf("reprint: %v", err)
+	}
+
+	// The paper QR lets one person in, once. A photocopy is refused.
+	r, _ := s.Scan(gate, b.Passes[0].QR, 1)
+	if r.Outcome != "allowed" || r.TypeLabel != "Support staff" || !strings.Contains(r.Sub, "keep the paper pass") {
+		t.Fatalf("scan: %+v", r)
+	}
+	gate2 := signIn(t, s, "p24other@iima.ac.in", "Other")
+	for _, v := range []*core.Record{gate2, gate} { // another gate, or the same volunteer a second later
+		if r, _ := s.Scan(v, b.Passes[0].QR, 2); r.Outcome != "used" {
+			t.Fatalf("photocopy: %+v", r)
+		}
+	}
+	// Typing the printed code works too, after the usual check.
+	if r, _ := s.Scan(gate, b.Passes[1].Code, 1); r.Outcome != "check" {
+		t.Fatalf("typed: %+v", r)
+	}
+	// Forged or altered codes are refused.
+	parts := strings.Split(b.Passes[2].QR, ".")
+	for _, bad := range []string{"G3." + parts[1] + ".AAAAAAAAAAAA", "G3." + parts[1], "G3.nosuchpass000." + parts[2], "G3..", b.Passes[2].QR + "x"} {
+		if r, _ := s.Scan(gate, bad, 1); r.Outcome != "invalid" {
+			t.Fatalf("%q: %+v", bad, r)
+		}
+	}
+	// A phone pass can't be turned into a fixed code: screenshots still don't work.
+	m := me(t, s, signIn(t, s, "p25aarav@iima.ac.in", "Aarav"))
+	if r, _ := s.Scan(gate, printPayload(m.Pass.Key, m.Pass.ID), 1); r.Outcome != "invalid" {
+		t.Fatalf("fixed code for a phone pass: %+v", r)
+	}
+	// A cancelled paper pass (lost, say) is refused.
+	lost, _ := s.app.FindFirstRecordByData("passes", "code", b.Passes[5].Code)
+	if err := s.AdminRevoke(lost.Id); err != nil {
+		t.Fatal(err)
+	}
+	if r, _ := s.Scan(gate, b.Passes[5].QR, 1); r.Outcome != "revoked" {
+		t.Fatalf("cancelled: %+v", r)
+	}
+
+	runs, err := s.PrintBatches()
+	if err != nil || len(runs) != 2 || runs[0].Count != 3 || runs[1].Count != 40 || runs[1].Entered != 1 || runs[1].Cancelled != 1 {
+		t.Fatalf("runs: %v %+v", err, runs)
+	}
+	if list, _ := s.AdminPasses("", "print", 0); len(list.Items) != AdminPageSize || !list.More || list.Items[0].Tone != "faculty" {
+		t.Fatalf("list: %d", len(list.Items))
+	}
+	for _, n := range []int{0, -1, MaxPrintBatch + 1} {
+		if _, err := s.GeneratePrintPasses(n, ""); err == nil {
+			t.Fatalf("count %d accepted", n)
+		}
+	}
+}
+
+func TestAlumniBringGuestsFromTheirPassLink(t *testing.T) {
+	s, _ := setup(t)
+	gate := signIn(t, s, "p24meera@iima.ac.in", "Meera")
+	sheet := "Name,Email,College,Guests\n" +
+		"Asha Mehta,,IIM Ahmedabad Alumni,\n" + // alumni default
+		"Ravi Rao,ravi.rao@gmail.com,IIM Ahmedabad Alumni,\n" + // alum who can also sign in
+		"Tara Singh,,XLRI Jamshedpur,\n" + // ordinary exchange guest: no guests
+		"Keerti Guest,,Prof. Keerti Sharda,1\n" // one guest, set in the sheet
+	if res, err := s.ImportExchange("x.csv", []byte(sheet)); err != nil || res.Created != 4 || len(res.Errors) != 0 {
+		t.Fatalf("import: %v %+v", err, res)
+	}
+	token := func(name string) string {
+		p, err := s.app.FindFirstRecordByData("passes", "holderName", name)
+		if err != nil {
+			t.Fatal(err)
+		}
+		return p.GetString("linkToken")
+	}
+	asha := token("Asha Mehta")
+
+	l, err := s.PassByLink(asha)
+	if err != nil || l.Limit != 2 || l.Remaining != 2 || len(l.Guests) != 0 {
+		t.Fatalf("alum link: %v %+v", err, l)
+	}
+	if l, _ := s.PassByLink(token("Tara Singh")); l.Limit != 0 {
+		t.Fatalf("exchange guest got a limit: %d", l.Limit)
+	}
+	if _, err := s.AddGuestByLink(token("Tara Singh"), "Friend", ""); err == nil {
+		t.Fatal("ordinary exchange guest added a guest")
+	}
+	if l, _ := s.PassByLink(token("Keerti Guest")); l.Limit != 1 {
+		t.Fatalf("sheet limit: %d", l.Limit)
+	}
+
+	l, err = s.AddGuestByLink(asha, " Mohan  Mehta ", "")
+	if err != nil || len(l.Guests) != 1 || l.Remaining != 1 {
+		t.Fatalf("add: %v %+v", err, l)
+	}
+	g := l.Guests[0]
+	if g.Kind != "guest" || g.HolderName != "Mohan Mehta" || g.Key == "" || g.IssuerName == nil || *g.IssuerName != "Asha Mehta" {
+		t.Fatalf("guest: %+v", g)
+	}
+	l, _ = s.AddGuestByLink(asha, "Leela Mehta", "")
+	if _, err := s.AddGuestByLink(asha, "One Too Many", ""); err == nil || l.Remaining != 0 {
+		t.Fatalf("limit not enforced: %v", err)
+	}
+	// Guests can't add guests of their own, and a guest's link can't touch its host's guests.
+	guestToken := func() string { p, _ := s.app.FindRecordById("passes", g.ID); return p.GetString("linkToken") }()
+	if _, err := s.AddGuestByLink(guestToken, "Chain", ""); err == nil {
+		t.Fatal("a guest added a guest")
+	}
+	if _, err := s.RemoveGuestByLink(token("Ravi Rao"), g.ID); err == nil {
+		t.Fatal("removed someone else's guest")
+	}
+
+	// At the gate the guest scans like any other, and shows whose guest they are.
+	r, _ := s.Scan(gate, QRPayload(g.Key, g.ID, s.Now()), 1)
+	if r.Outcome != "allowed" || !strings.Contains(r.Meta, "Guest of Asha Mehta") {
+		t.Fatalf("scan: %+v", r)
+	}
+	if _, err := s.RemoveGuestByLink(asha, g.ID); err == nil {
+		t.Fatal("removed a guest who already entered")
+	}
+	l, err = s.RemoveGuestByLink(asha, l.Guests[1].ID)
+	if err != nil || len(l.Guests) != 1 || l.Remaining != 1 {
+		t.Fatalf("remove: %v %+v", err, l)
+	}
+
+	// An alum who signs in with Google gets the same thing from their account.
+	ravi := signIn(t, s, "ravi.rao@gmail.com", "Ravi Rao")
+	m := me(t, s, ravi)
+	if m.Limit != 2 || m.Pass == nil || m.Pass.Kind != "exchange" {
+		t.Fatalf("signed-in alum: %+v", m)
+	}
+	mp, err := s.AddGuest(ravi, "Sita Rao", "")
+	if err != nil || len(mp.Guests) != 1 || mp.Remaining != 1 {
+		t.Fatalf("signed-in add: %v", err)
+	}
+	// ...and sees the same guests through the link.
+	if l, _ := s.PassByLink(token("Ravi Rao")); len(l.Guests) != 1 || l.Guests[0].HolderName != "Sita Rao" {
+		t.Fatalf("link after signed-in add: %+v", l.Guests)
+	}
+	if link, err := s.GuestLink(ravi, mp.Guests[0].ID, "https://x"); err != nil || !strings.HasPrefix(link, "https://x/p/") {
+		t.Fatalf("guest link: %v", err)
+	}
+	if mp, err = s.RemoveGuest(ravi, mp.Guests[0].ID); err != nil || len(mp.Guests) != 0 {
+		t.Fatalf("signed-in remove: %v", err)
+	}
+	if _, err := s.RemoveGuest(ravi, g.ID); err == nil {
+		t.Fatal("removed another alum's guest")
+	}
+
+	// The default is a setting; members' own limits are untouched.
+	zero := 0
+	in := SettingsInput{}
+	in.Limits.Alumni = &zero
+	if _, err := s.SaveSettings(in); err != nil {
+		t.Fatal(err)
+	}
+	if l, _ := s.PassByLink(asha); l.Limit != 0 {
+		t.Fatalf("alumni limit 0: %d", l.Limit)
+	}
+	if m := me(t, s, signIn(t, s, "p25aarav@iima.ac.in", "Aarav")); m.Limit != 3 {
+		t.Fatalf("member limit: %d", m.Limit)
 	}
 }

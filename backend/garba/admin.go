@@ -7,6 +7,7 @@ import (
 	"path/filepath"
 	"regexp"
 	"slices"
+	"strconv"
 	"strings"
 	"time"
 
@@ -83,6 +84,7 @@ var passFilters = map[string]string{
 	"own":      " && kind = 'own'",
 	"guest":    " && kind = 'guest'",
 	"exchange": " && kind = 'exchange'",
+	"print":    " && kind = 'print'",
 	"revoked":  " && status = 'REVOKED'",
 }
 
@@ -374,6 +376,7 @@ func (s *Service) ImportExchange(filename string, data []byte) (*ImportResult, e
 			"email":   {"email", "emailid", "emailaddress", "mail", "gmail"},
 			"college": {"college", "institute", "institution", "university", "school"},
 			"phone":   {"phone", "mobile", "phonenumber", "mobilenumber", "contact", "whatsapp"},
+			"guests":  {"guests", "guest", "guestlimit", "guestpasses", "plusones", "family"},
 		} {
 			if _, taken := col[key]; !taken && slices.Contains(aliases, h) {
 				col[key] = i
@@ -410,6 +413,16 @@ func (s *Service) ImportExchange(filename string, data []byte) (*ImportResult, e
 				out.Errors = append(out.Errors, ImportError{line, "IIMA addresses get their own pass by signing in"})
 				continue
 			}
+			// Optional "Guests" column: how many guests this person may add (alumni get the default without it).
+			guestLimit, hasGuests := 0, false
+			if g := get(row, "guests"); g != "" {
+				n, err := strconv.Atoi(g)
+				if err != nil || n < 0 || n > 50 {
+					out.Errors = append(out.Errors, ImportError{line, fmt.Sprintf("guests must be a number from 0 to 50, not %q", g)})
+					continue
+				}
+				guestLimit, hasGuests = n, true
+			}
 			var existing *core.Record
 			if email != "" {
 				existing, _ = tx.FindFirstRecordByFilter("passes", "holderEmail = {:e} && kind != 'own'", dbx.Params{"e": email})
@@ -425,6 +438,9 @@ func (s *Service) ImportExchange(filename string, data []byte) (*ImportResult, e
 				existing.Set("college", college)
 				existing.Set("phone", phone)
 				existing.Set("status", "ACTIVE")
+				if hasGuests {
+					existing.Set("guestLimit", guestLimit)
+				}
 				if err := tx.Save(existing); err != nil {
 					return err
 				}
@@ -437,7 +453,7 @@ func (s *Service) ImportExchange(filename string, data []byte) (*ImportResult, e
 					holderID = u.Id
 				}
 			}
-			if _, err := newPass(tx, "exchange", holderID, name, email, "", map[string]any{"college": college, "phone": phone}); err != nil {
+			if _, err := newPass(tx, "exchange", holderID, name, email, "", map[string]any{"college": college, "phone": phone, "guestLimit": guestLimit}); err != nil {
 				return err
 			}
 			out.Created++

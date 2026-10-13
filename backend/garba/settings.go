@@ -28,6 +28,8 @@ type Limits struct {
 	PGP1    int `json:"pgp1"`
 	Student int `json:"student"`
 	Faculty int `json:"faculty"`
+	// Alumni: people on the exchange list whose college says "alumni" (they have no IIMA account).
+	Alumni int `json:"alumni"`
 }
 
 type Settings struct {
@@ -49,7 +51,7 @@ func defaultSettings() Settings {
 			DressCode:  "Dress code: chaniya choli, kediyu, kurta.",
 			Gates:      2,
 		},
-		Limits:       Limits{PGP1: 0, Student: 3, Faculty: 3},
+		Limits:       Limits{PGP1: 0, Student: 3, Faculty: 3, Alumni: 2},
 		PGP1Prefixes: []string{"p26", "f26"},
 	}
 }
@@ -89,6 +91,7 @@ type SettingsInput struct {
 		PGP1    *int `json:"pgp1"`
 		Student *int `json:"student"`
 		Faculty *int `json:"faculty"`
+		Alumni  *int `json:"alumni"`
 	} `json:"limits"`
 	PGP1Prefixes []string `json:"pgp1Prefixes"`
 }
@@ -119,6 +122,7 @@ func merge(dst Settings, src SettingsInput) Settings {
 	lim(&dst.Limits.PGP1, src.Limits.PGP1)
 	lim(&dst.Limits.Student, src.Limits.Student)
 	lim(&dst.Limits.Faculty, src.Limits.Faculty)
+	lim(&dst.Limits.Alumni, src.Limits.Alumni)
 	if src.PGP1Prefixes != nil {
 		var p []string
 		for _, v := range src.PGP1Prefixes {

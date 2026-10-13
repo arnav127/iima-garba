@@ -85,9 +85,13 @@ type MeResponse struct {
 }
 
 type LinkResponse struct {
-	Event      EventInfo `json:"event"`
-	Pass       PassView  `json:"pass"`
-	ServerTime int64     `json:"serverTime"`
+	Event EventInfo `json:"event"`
+	Pass  PassView  `json:"pass"`
+	// Guests this pass holder has added (alumni may bring family), and how many they may add.
+	Guests     []PassView `json:"guests"`
+	Limit      int        `json:"limit"`
+	Remaining  int        `json:"remaining"`
+	ServerTime int64      `json:"serverTime"`
 }
 
 type ScanResult struct {
@@ -185,7 +189,7 @@ func (s *Service) GuestLimit(u *core.Record) int {
 }
 
 func (s *Service) view(p *core.Record, withKey bool) PassView {
-	holder, issuer := p.ExpandedOne("holder"), p.ExpandedOne("issuer")
+	holder, issuer, host := p.ExpandedOne("holder"), p.ExpandedOne("issuer"), p.ExpandedOne("host")
 	v := PassView{
 		ID: p.Id, Code: p.GetString("code"), Kind: p.GetString("kind"), Status: p.GetString("status"),
 		HolderName: p.GetString("holderName"), HolderEmail: strPtr(p.GetString("holderEmail")),
@@ -196,6 +200,11 @@ func (s *Service) view(p *core.Record, withKey bool) PassView {
 		v.TypeLabel, v.Tone = "Guest", "guest"
 	case "exchange":
 		v.TypeLabel, v.Tone = "Exchange", "exchange"
+	case "print": // a paper pass; its label ("Support staff") is kept in college
+		v.TypeLabel, v.Tone = "Printed pass", "faculty"
+		if v.College != nil {
+			v.TypeLabel = *v.College
+		}
 	default:
 		g := "faculty"
 		if holder != nil {
@@ -212,6 +221,8 @@ func (s *Service) view(p *core.Record, withKey bool) PassView {
 	}
 	if issuer != nil {
 		v.IssuerName = strPtr(issuer.GetString("name"))
+	} else if host != nil {
+		v.IssuerName = strPtr(host.GetString("holderName"))
 	}
 	if at := int64(p.GetFloat("enteredAt")); at > 0 {
 		gate := p.GetInt("enteredGate")
@@ -224,7 +235,7 @@ func (s *Service) view(p *core.Record, withKey bool) PassView {
 }
 
 func (s *Service) views(app core.App, recs []*core.Record, withKey bool) []PassView {
-	app.ExpandRecords(recs, []string{"holder", "issuer"}, nil)
+	app.ExpandRecords(recs, []string{"holder", "issuer", "host"}, nil)
 	out := make([]PassView, 0, len(recs))
 	for _, p := range recs {
 		out = append(out, s.view(p, withKey))
@@ -421,69 +432,46 @@ func (s *Service) Me(u *core.Record) (MeResponse, error) {
 	if err != nil {
 		own, err = app.FindFirstRecordByFilter("passes", "holder = {:u} && kind != 'own' && status = 'ACTIVE'", dbx.Params{"u": u.Id})
 	}
+	filter, params := "issuer = {:u} && status = 'ACTIVE'", dbx.Params{"u": u.Id}
+	res.Limit = s.GuestLimit(u)
+	if hp := s.hostPass(app, u); hp != nil { // an alum signed in with Google: guests hang off their pass
+		filter, params = "host = {:h} && status = 'ACTIVE'", dbx.Params{"h": hp.Id}
+		res.Limit = s.hostLimit(hp)
+		if err != nil || own.GetString("kind") != "own" {
+			own, err = hp, nil
+		}
+	}
 	if err == nil {
 		v := s.viewOne(app, own, true)
 		res.Pass = &v
 	}
-	guests, err := app.FindRecordsByFilter("passes", "issuer = {:u} && status = 'ACTIVE'", "seq", 0, 0, dbx.Params{"u": u.Id})
+	guests, err := app.FindRecordsByFilter("passes", filter, "seq", 0, 0, params)
 	if err != nil {
 		return res, err
 	}
 	res.Guests = s.views(app, guests, true)
-	res.Limit = s.GuestLimit(u)
 	res.Remaining = max(res.Limit-len(guests), 0)
 	return res, nil
 }
 
 func (s *Service) AddGuest(u *core.Record, nameRaw, emailRaw string) (*MeResponse, error) {
-	name := cleanName(nameRaw)
-	email := strings.ToLower(strings.TrimSpace(emailRaw))
-	if len(name) < 2 || len(name) > 80 {
-		return nil, apiErr(400, "Enter their name as on their ID")
+	name, email, err := cleanGuest(nameRaw, emailRaw)
+	if err != nil {
+		return nil, err
 	}
-	if email != "" && !isEmail(email) {
-		return nil, apiErr(400, "That email doesn't look right. Leave it empty to keep their pass on your phone.")
-	}
-	if !isMemberGroup(group(u)) {
-		return nil, apiErr(403, "Only IIMA members can add guests")
-	}
-	err := s.app.RunInTransaction(func(tx core.App) error {
+	err = s.app.RunInTransaction(func(tx core.App) error {
 		// Re-read the person so a limit an admin just changed applies.
 		if fresh, err := tx.FindRecordById("users", u.Id); err == nil {
 			u = fresh
 		}
-		n, err := tx.CountRecords("passes", dbx.HashExp{"issuer": u.Id, "status": "ACTIVE"})
-		if err != nil {
-			return err
+		if isMemberGroup(group(u)) {
+			return s.addGuest(tx, name, email, guestOwner{issuer: u.Id, email: u.Email(), limit: s.GuestLimit(u)})
 		}
-		if int(n) >= s.GuestLimit(u) {
-			if s.GuestLimit(u) == 0 {
-				return apiErr(409, "Your pass is for yourself only")
-			}
-			return apiErr(409, "You've added all your guests")
+		hp := s.hostPass(tx, u)
+		if hp == nil {
+			return apiErr(403, "Only IIMA members can add guests")
 		}
-		holderID := ""
-		if email != "" {
-			if email == u.Email() {
-				return apiErr(400, "That's your own email")
-			}
-			if s.isMemberEmail(email) {
-				return apiErr(409, "IIMA members get their own pass when they sign in")
-			}
-			if dup, err := tx.FindFirstRecordByFilter("passes", "holderEmail = {:e} && status = 'ACTIVE'", dbx.Params{"e": email}); err == nil {
-				tx.ExpandRecord(dup, []string{"issuer"}, nil)
-				by := "Cultcomm"
-				if is := dup.ExpandedOne("issuer"); is != nil {
-					by = is.GetString("name")
-				}
-				return apiErr(409, fmt.Sprintf("%s already has a pass from %s", email, by))
-			}
-			if existing, err := tx.FindAuthRecordByEmail("users", email); err == nil {
-				holderID = existing.Id
-			}
-		}
-		_, err = newPass(tx, "guest", holderID, name, email, u.Id, nil)
-		return err
+		return s.addGuest(tx, name, email, guestOwner{host: hp.Id, email: u.Email(), limit: s.hostLimit(hp)})
 	})
 	if err != nil {
 		return nil, err
@@ -492,12 +480,18 @@ func (s *Service) AddGuest(u *core.Record, nameRaw, emailRaw string) (*MeRespons
 	return &me, err
 }
 
+// myGuest finds an active guest pass that u added, as a member or from their host pass.
 func (s *Service) myGuest(tx core.App, u *core.Record, id string) (*core.Record, error) {
-	p, err := tx.FindFirstRecordByFilter("passes", "id = {:id} && issuer = {:u} && status = 'ACTIVE'", dbx.Params{"id": id, "u": u.Id})
-	if err != nil {
-		return nil, apiErr(404, "Pass not found")
+	p, err := tx.FindFirstRecordByFilter("passes", "id = {:id} && kind = 'guest' && status = 'ACTIVE'", dbx.Params{"id": id})
+	if err == nil {
+		if p.GetString("issuer") == u.Id {
+			return p, nil
+		}
+		if hp := s.hostPass(tx, u); hp != nil && p.GetString("host") == hp.Id {
+			return p, nil
+		}
 	}
-	return p, nil
+	return nil, apiErr(404, "Pass not found")
 }
 
 func (s *Service) RemoveGuest(u *core.Record, id string) (*MeResponse, error) {
@@ -506,12 +500,7 @@ func (s *Service) RemoveGuest(u *core.Record, id string) (*MeResponse, error) {
 		if err != nil {
 			return err
 		}
-		if p.GetFloat("enteredAt") > 0 {
-			return apiErr(409, "They've already entered, so this pass can't be removed")
-		}
-		p.Set("status", "REVOKED")
-		p.Set("revokedAt", s.nowMs())
-		return tx.Save(p)
+		return s.removeGuest(tx, p)
 	})
 	if err != nil {
 		return nil, err
@@ -528,24 +517,29 @@ func (s *Service) GuestLink(u *core.Record, id, appURL string) (string, error) {
 	return strings.TrimRight(appURL, "/") + "/p/" + p.GetString("linkToken"), nil
 }
 
-// PassByLink serves /p/<token>: the pass, with its QR key, for people without a Google account.
+// PassByLink serves /p/<token>: the pass, with its QR key, for people without a Google account,
+// plus any guests they have added from it.
 func (s *Service) PassByLink(token string) (*LinkResponse, error) {
-	if len(token) < 16 {
-		return nil, apiErr(404, "This pass link isn't valid")
+	p, err := s.passByToken(s.app, token)
+	if err != nil {
+		return nil, err
 	}
-	p, err := s.app.FindFirstRecordByData("passes", "linkToken", token)
-	if err != nil || p.GetString("status") != "ACTIVE" {
-		return nil, apiErr(404, "This pass link isn't valid any more")
-	}
-	return &LinkResponse{Event: s.Settings().Event, Pass: s.viewOne(s.app, p, true), ServerTime: s.nowMs()}, nil
+	return s.linkResponse(p)
 }
 
 // ---------- gate ----------
 
-func qrSig(secret, passID string, step int64) string {
+// hmacSum signs msg with a pass's secret (HMAC-SHA256, first 9 bytes, base64url).
+func hmacSum(secret, msg string) string {
 	mac := hmac.New(sha256.New, []byte(secret))
-	mac.Write([]byte(passID + "." + strconv.FormatInt(step, 10)))
+	mac.Write([]byte(msg))
 	return base64.RawURLEncoding.EncodeToString(mac.Sum(nil)[:9])
+}
+
+func hmacEqual(a, b string) bool { return hmac.Equal([]byte(a), []byte(b)) }
+
+func qrSig(secret, passID string, step int64) string {
+	return hmacSum(secret, passID+"."+strconv.FormatInt(step, 10))
 }
 
 // QRPayload is what a phone shows right now (also used by tests).
@@ -573,11 +567,16 @@ func (s *Service) passMeta(v PassView) string {
 			college = *v.College
 		}
 		return fmt.Sprintf("%s · %s", college, v.Code)
+	case "print":
+		return fmt.Sprintf("Printed pass · %s", v.Code)
 	}
 	return fmt.Sprintf("%s · Own pass · %s", v.TypeLabel, v.Code)
 }
 
 func idCheck(v PassView) string {
+	if v.Kind == "print" {
+		return "keep the paper pass"
+	}
 	switch v.Tone {
 	case "guest":
 		return "check photo ID"
@@ -619,6 +618,10 @@ func (s *Service) Scan(volunteer *core.Record, payloadRaw string, gate int) (*Sc
 		return r, nil
 	}
 
+	if strings.HasPrefix(payload, printPrefix) {
+		return s.scanPrinted(volunteer, payload, gate)
+	}
+
 	parts := strings.Split(strings.TrimPrefix(payload, qrPrefix), ".")
 	if !strings.HasPrefix(payload, qrPrefix) || len(parts) != 3 {
 		return s.result("invalid", "Not a valid pass", "This QR isn't a Garba Night pass. No entry.", nil), nil
@@ -629,7 +632,7 @@ func (s *Service) Scan(volunteer *core.Record, payloadRaw string, gate int) (*Sc
 	}
 	step, _ := strconv.ParseInt(parts[1], 10, 64)
 	v := s.viewOne(s.app, p, false)
-	if !hmac.Equal([]byte(parts[2]), []byte(qrSig(p.GetString("secret"), p.Id, step))) {
+	if !hmacEqual(parts[2], qrSig(p.GetString("secret"), p.Id, step)) {
 		return s.result("invalid", "Not a valid pass", "This QR has been tampered with. No entry.", nil), nil
 	}
 	if d := s.Now().Unix()/QRStep - step; d > QRWindow || d < -QRWindow {
@@ -661,7 +664,8 @@ func (s *Service) stateCheck(p *core.Record, v PassView) *ScanResult {
 // usually because the reply was lost on a bad network and they scanned or typed it again.
 func (s *Service) graceRescan(volunteer, p *core.Record, v PassView, r *ScanResult) *ScanResult {
 	ago := (s.nowMs() - int64(p.GetFloat("enteredAt"))) / 1000
-	if r.Outcome == "used" && p.GetString("enteredBy") == volunteer.Id && ago >= 0 && ago < RescanGraceSeconds {
+	// Not for paper passes: the volunteer keeps the slip, so a second one moments later is a photocopy.
+	if r.Outcome == "used" && p.GetString("kind") != "print" && p.GetString("enteredBy") == volunteer.Id && ago >= 0 && ago < RescanGraceSeconds {
 		return s.result("allowed", "Entry allowed", fmt.Sprintf("You let them in %ds ago · %s", ago, idCheck(v)), &v)
 	}
 	return r

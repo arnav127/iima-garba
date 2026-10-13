@@ -1,19 +1,22 @@
 import { useEffect, useRef, useState } from 'preact/hooks';
 import {
   GROUP_LABEL, MEMBER_GROUPS, TONES, toneOfKind,
-  type AdminPerson, type AdminStats, type Group, type ImportResult, type MeResponse, type Page, type PassView, type Role, type Settings,
+  type AdminPerson, type AdminStats, type Group, type ImportResult, type MeResponse, type Page, type PassView, type PrintBatch, type PrintBatchInfo, type Role, type Settings,
 } from '../../../shared/types.ts';
 import { Btn, ConfirmBtn, Icon, Logo, Mirrors, Rainbow, Sheet, Spinner, Top } from '../components/ui.tsx';
 import { api, initials, istTime, navigate, onPassesChange, pb, pbCall, storage, toast, toastError } from '../lib.ts';
 import { AccountSheet } from './Home.tsx';
+import { PrintSheet } from './PrintSheet.tsx';
 
-type Tab = 'live' | 'passes' | 'people' | 'exchange' | 'settings';
-const TABS: [Tab, string][] = [['live', 'Live'], ['passes', 'Passes'], ['people', 'People'], ['exchange', 'Exchange'], ['settings', 'Settings']];
+type Tab = 'live' | 'passes' | 'people' | 'exchange' | 'print' | 'settings';
+const TABS: [Tab, string][] = [['live', 'Live'], ['passes', 'Passes'], ['people', 'People'], ['exchange', 'Exchange'], ['print', 'Print'], ['settings', 'Settings']];
 
 export function Admin({ me }: { me: MeResponse }) {
   const [tab, setTab] = useState<Tab>(() => storage.get<Tab>('garba:admintab') ?? 'live');
   const [account, setAccount] = useState(false);
   const pick = (t: Tab) => { setTab(t); storage.set('garba:admintab', t); };
+  const [printing, setPrinting] = useState<PrintBatch | null>(null);
+  if (printing) return <PrintSheet batch={printing} onClose={() => setPrinting(null)} />;
   return (
     <div class="screen dash">
       <Top />
@@ -33,6 +36,7 @@ export function Admin({ me }: { me: MeResponse }) {
       {tab === 'passes' && <Passes />}
       {tab === 'people' && <People meId={me.user.id} />}
       {tab === 'exchange' && <Exchange />}
+      {tab === 'print' && <PrintTab onOpen={setPrinting} />}
       {tab === 'settings' && <SettingsTab />}
       <div style={{ height: 'calc(40px + var(--safe-b))', flex: 'none' }} />
       {account && <AccountSheet me={me} onClose={() => setAccount(false)} />}
@@ -41,7 +45,7 @@ export function Admin({ me }: { me: MeResponse }) {
 }
 
 const ToneDot = ({ color }: { color: string }) => <span class="tone-dot" style={{ background: color }} />;
-const kindLabel = { own: 'IIMA members', guest: 'Friends & family', exchange: 'Exchange' };
+const kindLabel = { own: 'IIMA members', guest: 'Friends & family', exchange: 'Exchange', print: 'Printed passes' };
 
 async function download(path: string, name: string) {
   try {
@@ -195,7 +199,7 @@ function Live({ me }: { me: MeResponse }) {
 
 // ---------- Passes ----------
 
-const FILTERS: [string, string][] = [['', 'All'], ['entered', 'Entered'], ['waiting', 'Not in yet'], ['own', 'IIMA'], ['guest', 'Guests'], ['exchange', 'Exchange'], ['revoked', 'Cancelled']];
+const FILTERS: [string, string][] = [['', 'All'], ['entered', 'Entered'], ['waiting', 'Not in yet'], ['own', 'IIMA'], ['guest', 'Guests'], ['exchange', 'Exchange'], ['print', 'Printed'], ['revoked', 'Cancelled']];
 
 function passStatus(p: PassView): { label: string; color: string } {
   if (p.status === 'REVOKED') return { label: 'CANCELLED', color: 'var(--muted)' };
@@ -410,7 +414,7 @@ function Exchange() {
       <div class="box" style={{ margin: '16px 20px 0', padding: 16, display: 'flex', flexDirection: 'column', gap: 10 }}>
         <span style={{ font: '800 22px/1 var(--fd)', fontStretch: '75%' }}>UPLOAD EXCHANGE GUESTS</span>
         <span class="note" style={{ fontSize: 13 }}>
-          Excel (.xlsx) or CSV. First row: <b>Name</b>, <b>Email</b>, <b>College</b>, and optionally <b>Phone</b>. Uploading again updates people instead of duplicating them.
+          Excel (.xlsx) or CSV. First row: <b>Name</b>, <b>Email</b>, <b>College</b>, and optionally <b>Phone</b> and <b>Guests</b> (how many guests that person may add). Uploading again updates people instead of duplicating them.
           Guests with an email sign in with Google; everyone gets a pass link you can share.
         </span>
         <label class="btn ghost small" style={{ cursor: 'pointer' }}>
@@ -435,6 +439,77 @@ function Exchange() {
   );
 }
 
+// ---------- Print ----------
+
+function PrintTab({ onOpen }: { onOpen: (b: PrintBatch) => void }) {
+  const [count, setCount] = useState(40);
+  const [label, setLabel] = useState('Support staff');
+  const [runs, setRuns] = useState<PrintBatchInfo[] | null>(null);
+  const [busy, setBusy] = useState(false);
+  const load = () => { api<PrintBatchInfo[]>('/admin/print').then(setRuns).catch(toastError); };
+  useEffect(load, []);
+  const valid = Number.isInteger(count) && count >= 1 && count <= 400;
+
+  async function generate() {
+    setBusy(true);
+    try {
+      const b = await api<PrintBatch>('/admin/print', { body: { count, label } });
+      toast(`${b.passes.length} passes ready to print`);
+      onOpen(b);
+    } catch (e) { toastError(e); } finally { setBusy(false); }
+  }
+  async function reopen(batch: string) {
+    setBusy(true);
+    try { onOpen(await api<PrintBatch>(`/admin/print?batch=${encodeURIComponent(batch)}`)); } catch (e) { toastError(e); } finally { setBusy(false); }
+  }
+
+  return (
+    <div class="dash-cols">
+      <div class="dash-col">
+        <div class="box" style={{ margin: '16px 20px 0', padding: 16, display: 'flex', flexDirection: 'column', gap: 10 }}>
+          <span style={{ font: '800 22px/1 var(--fd)', fontStretch: '75%' }}>PRINTED PASSES</span>
+          <span class="note" style={{ fontSize: 13 }}>
+            Paper passes for people without a smartphone. You get A4 sheets with 8 passes each, ready to print and cut.
+            Each pass has its own QR and lets one person in, once.
+          </span>
+          <div style={{ display: 'grid', gridTemplateColumns: '110px 1fr', gap: 10 }}>
+            <div class="field">
+              <label class="label" for="pr-count">HOW MANY</label>
+              <input id="pr-count" class="input" type="number" min={1} max={400} value={count} onInput={(e) => setCount(Number(e.currentTarget.value))} />
+            </div>
+            <div class="field">
+              <label class="label" for="pr-label">PRINTED ON THE PASS</label>
+              <input id="pr-label" class="input" value={label} maxLength={40} onInput={(e) => setLabel(e.currentTarget.value)} placeholder="Support staff" />
+            </div>
+          </div>
+          <ConfirmBtn disabled={busy || !valid} icon="plus" confirmLabel={`Tap again to create ${count} new passes`} onConfirm={generate}>
+            {busy ? 'Working…' : `Generate ${valid ? count : ''} print passes`}
+          </ConfirmBtn>
+          <span class="hint">Every tap creates new passes. To print the same ones again, use the list of earlier runs.</span>
+        </div>
+      </div>
+      <div class="dash-col">
+        <div class="label dash-first" style={{ padding: '22px 22px 8px' }}>EARLIER PRINT RUNS</div>
+        <div style={{ margin: '0 20px', borderTop: '2px solid var(--ink)' }}>
+          {!runs && <Spinner />}
+          {runs?.length === 0 && <div class="row hint">Nothing printed yet.</div>}
+          {runs?.map((r) => (
+            <button key={r.batch} class="row" disabled={busy} onClick={() => reopen(r.batch)}>
+              <div class="av" style={{ background: TONES.faculty.color }}>{r.count}</div>
+              <div class="row-main">
+                <span class="row-title">{r.batch}</span>
+                <span class="row-sub">{r.count} passes · {r.entered} in{r.cancelled ? ` · ${r.cancelled} cancelled` : ''}</span>
+              </div>
+              <span class="status">PRINT AGAIN</span>
+            </button>
+          ))}
+        </div>
+        <div class="hint" style={{ margin: '12px 22px 0', lineHeight: 1.45 }}>Lost a paper pass? Find it under Passes → Printed and cancel it. Printing again leaves out passes already used or cancelled.</div>
+      </div>
+    </div>
+  );
+}
+
 // ---------- Settings ----------
 
 function SettingsTab() {
@@ -454,13 +529,13 @@ function SettingsTab() {
     } catch (e) { toastError(e); } finally { setBusy(false); }
   }
   const text: [keyof Settings['event'], string][] = [['title', 'EVENT NAME'], ['dateLabel', 'DATE (as shown)'], ['timeLabel', 'STARTS'], ['venue', 'VENUE'], ['venueShort', 'VENUE (short)'], ['dressCode', 'DRESS CODE LINE']];
-  const limits: [keyof Settings['limits'], string][] = [['pgp1', 'PGP1'], ['student', 'OTHER STUDENTS'], ['faculty', 'FACULTY & STAFF']];
+  const limits: [keyof Settings['limits'], string][] = [['pgp1', 'PGP1'], ['student', 'OTHER STUDENTS'], ['faculty', 'FACULTY & STAFF'], ['alumni', 'ALUMNI']];
 
   return (
     <div class="dash-cols">
     <div class="dash-col" style={{ margin: '16px 20px 0', gap: 14 }}>
       <span style={{ font: '800 22px/1 var(--fd)', fontStretch: '75%' }}>GUESTS EACH PERSON CAN ADD</span>
-      <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr 1fr', gap: 10 }}>
+      <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 10 }}>
         {limits.map(([k, label]) => (
           <div key={k} class="field">
             <label class="label" for={`l-${k}`} style={{ fontSize: 11 }}>{label}</label>
@@ -468,7 +543,7 @@ function SettingsTab() {
           </div>
         ))}
       </div>
-      <span class="hint">On top of their own pass. Change one person's limit from People. Lowering a limit doesn't remove guests already added.</span>
+      <span class="hint">On top of their own pass. Change one person's limit from People. Lowering a limit doesn't remove guests already added. Alumni are the people on the exchange list whose college says “Alumni”: they add family from their pass link. For anyone else on that list, add a <b>Guests</b> column to the sheet.</span>
       <div class="field">
         <label class="label" for="prefixes">PGP1 EMAIL PREFIXES</label>
         <input id="prefixes" class="input" value={prefixes} onInput={(e) => setPrefixes(e.currentTarget.value)} placeholder="p26, f26" autoCapitalize="none" spellcheck={false} />

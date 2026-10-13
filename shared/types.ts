@@ -3,7 +3,7 @@
 /** pgp1 | student | faculty come from the @iima.ac.in address; guest | exchange from the pass they hold. */
 export type Group = 'pgp1' | 'student' | 'faculty' | 'exchange' | 'guest';
 export type Role = 'member' | 'volunteer' | 'admin';
-export type PassKind = 'own' | 'guest' | 'exchange';
+export type PassKind = 'own' | 'guest' | 'exchange' | 'print';
 export type PassStatus = 'ACTIVE' | 'REVOKED';
 /** Colour family shown on passes and at the gate. */
 export type Tone = 'student' | 'faculty' | 'guest' | 'exchange';
@@ -35,6 +35,8 @@ export interface Limits {
   pgp1: number;
   student: number;
   faculty: number;
+  /** People on the exchange list whose college says "alumni". */
+  alumni: number;
 }
 
 export interface Settings {
@@ -84,7 +86,35 @@ export interface MeResponse {
 export interface LinkResponse {
   event: EventInfo;
   pass: PassView;
+  /** Guests added from this pass link (alumni may bring family) and how many are allowed. */
+  guests: PassView[];
+  limit: number;
+  remaining: number;
   serverTime: number;
+}
+
+/** One paper pass on a printed sheet. `qr` is its fixed code (paper can't rotate). */
+export interface PrintPass {
+  name: string;
+  code: string;
+  qr: string;
+  status: PassStatus;
+  enteredAt: number | null;
+}
+
+export interface PrintBatch {
+  batch: string;
+  label: string;
+  event: EventInfo;
+  passes: PrintPass[];
+}
+
+export interface PrintBatchInfo {
+  batch: string;
+  label: string;
+  count: number;
+  entered: number;
+  cancelled: number;
 }
 
 export type ScanOutcome = 'allowed' | 'used' | 'revoked' | 'invalid' | 'expired' | 'check';
@@ -129,4 +159,4 @@ export interface ImportResult {
   errors: { line: number; reason: string }[];
 }
 
-export const toneOfKind = (k: PassKind): Tone => (k === 'own' ? 'student' : k);
+export const toneOfKind = (k: PassKind): Tone => (k === 'own' ? 'student' : k === 'print' ? 'faculty' : k);
