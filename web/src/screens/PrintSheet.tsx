@@ -58,11 +58,13 @@ function PaperPass({ pass, batch }: { pass: PrintPass; batch: PrintBatch }) {
       <div class="zigzag pp-zigzag" />
       <div class="pp-body">
         <div class="pp-left">
-          <div class="pp-org"><Logo size={26} /><span>CULTCOMM<br />IIM AHMEDABAD</span></div>
+          <div class="pp-org"><Logo size={26} /><span>CULTCOMM<br />IIM AHMEDABAD</span><span class="pp-guj" lang="gu">ગરબા રાત</span></div>
           <div class="pp-title">{event.title.toUpperCase()}</div>
           <div class="pp-when">{event.dateLabel} · {event.venueShort} · {event.timeLabel}</div>
           <div class="pp-band"><span>{batch.label.toUpperCase()}</span>{no && <span class="pp-no">No. {no}</span>}</div>
-          <div class="pp-note">Entry for <b>one person</b>. Give this pass to the volunteer at the gate. It works once, so a photocopy will be refused.</div>
+          <div class="pp-note">Entry for <b>one person</b>. Give this pass at the gate. It works once: a photocopy will be refused.</div>
+          {/* The same instruction in Gujarati, for holders who read it more easily than English. */}
+          <div class="pp-note pp-note-gu" lang="gu">આ પાસ <b>એક વ્યક્તિ</b> માટે છે. ગેટ પર આ પાસ આપો. ફક્ત એક જ વાર ચાલશે, ફોટોકોપી નહીં ચાલે.</div>
           <div class="pp-sponsor"><span>STYLED BY</span><OkkaiLogo height={13} /></div>
         </div>
         <div class="pp-right">

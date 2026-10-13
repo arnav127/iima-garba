@@ -180,12 +180,14 @@ textarea.input { height: auto; min-height: 120px; padding: 12px 14px; font: 400 
 .pp-left { flex: 1; min-width: 0; display: flex; flex-direction: column; }
 .pp-org { display: flex; align-items: center; gap: 2mm; font: 700 5.6pt/1.25 var(--fb); letter-spacing: .14em; }
 .pp-org .logo { width: 7mm !important; height: 7mm !important; border-width: .3mm; }
-.pp-title { font: 800 24pt/.92 var(--fd); font-stretch: 75%; margin-top: 1.6mm; letter-spacing: -.01em; }
+.pp-guj { margin-left: auto; font: 800 10pt/1 var(--fd); letter-spacing: 0; }
+.pp-title { font: 800 22pt/.92 var(--fd); font-stretch: 75%; margin-top: 1.4mm; letter-spacing: -.01em; }
 .pp-when { font: 600 8.2pt/1.2 var(--fb); margin-top: 1.2mm; }
-.pp-band { margin-top: 2.4mm; background: #000; color: #fff; border-radius: 1.4mm; padding: 1.3mm 2.2mm; display: flex; justify-content: space-between; align-items: baseline; gap: 2mm; font: 800 11pt/1 var(--fd); letter-spacing: .02em; }
+.pp-band { margin-top: 2mm; background: #000; color: #fff; border-radius: 1.4mm; padding: 1.3mm 2.2mm; display: flex; justify-content: space-between; align-items: baseline; gap: 2mm; font: 800 11pt/1 var(--fd); letter-spacing: .02em; }
 .pp-band span:first-child { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .pp-no { font: 700 8pt/1 var(--fb); flex: none; }
-.pp-note { font: 500 7.4pt/1.32 var(--fb); margin-top: 2.2mm; color: #111; }
+.pp-note { font: 500 7pt/1.3 var(--fb); margin-top: 1.8mm; color: #111; }
+.pp-note-gu { font-size: 7.4pt; line-height: 1.38; margin-top: 1.1mm; }
 .pp-sponsor { margin-top: auto; display: flex; align-items: center; gap: 1.6mm; font: 700 5.2pt var(--fb); letter-spacing: .16em; color: #333; }
 .pp-right { flex: none; width: 38mm; display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 1.2mm; }
 .pp-qr { width: 38mm; height: 38mm; padding: 2mm; border: .6mm solid #000; border-radius: 2mm; background: #fff; }

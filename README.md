@@ -23,7 +23,7 @@ Pass distribution and gate entry for Cultcomm's Garba Night. Mobile first, in th
   | Teal | Exchange | College ID |
 
 - **Volunteers and admins** get a pass of their own too (any Google account; non-IIMA ones show as orange **Cultcomm team**, check photo ID), reachable from **MY QR** on the scanner and **Show my pass QR** on the dashboard.
-- **Printed passes** for people without a smartphone (support staff, for example): Admin → **Print** → choose how many → you get A4 sheets, 8 passes to a page with cut lines, through the browser's print window (Save as PDF, or print directly). They read fine in black and white.
+- **Printed passes** for people without a smartphone (support staff, for example): Admin → **Print** → choose how many → you get A4 sheets, 8 passes to a page with cut lines (labelled "Offline pass" unless you change it, with the instruction in English and Gujarati), through the browser's print window (Save as PDF, or print directly). They read fine in black and white.
   - Paper can't rotate, so each has a fixed QR. The gate accepts a fixed code only for printed passes, and each lets one person in once, so a photocopy shows "Already used". The volunteer keeps the slip.
   - A lost pass can be cancelled under Passes → Printed. "Print again" on an earlier run reprints the same passes, leaving out used and cancelled ones.
 - **Alumni** have no @iima.ac.in address, so they go on the exchange sheet with a college containing "Alumni" (for example `IIM Ahmedabad Alumni`). They can add family (2 by default, Settings → Alumni) from their pass link, and swipe through everyone's QR at the gate. An alum who signs in with Google gets the same from their account.

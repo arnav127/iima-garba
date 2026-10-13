@@ -443,7 +443,7 @@ function Exchange() {
 
 function PrintTab({ onOpen }: { onOpen: (b: PrintBatch) => void }) {
   const [count, setCount] = useState(40);
-  const [label, setLabel] = useState('Support staff');
+  const [label, setLabel] = useState('Offline pass');
   const [runs, setRuns] = useState<PrintBatchInfo[] | null>(null);
   const [busy, setBusy] = useState(false);
   const load = () => { api<PrintBatchInfo[]>('/admin/print').then(setRuns).catch(toastError); };
@@ -479,7 +479,7 @@ function PrintTab({ onOpen }: { onOpen: (b: PrintBatch) => void }) {
             </div>
             <div class="field">
               <label class="label" for="pr-label">PRINTED ON THE PASS</label>
-              <input id="pr-label" class="input" value={label} maxLength={40} onInput={(e) => setLabel(e.currentTarget.value)} placeholder="Support staff" />
+              <input id="pr-label" class="input" value={label} maxLength={40} onInput={(e) => setLabel(e.currentTarget.value)} placeholder="Offline pass" />
             </div>
           </div>
           <ConfirmBtn disabled={busy || !valid} icon="plus" confirmLabel={`Tap again to create ${count} new passes`} onConfirm={generate}>

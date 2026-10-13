@@ -200,7 +200,7 @@ func (s *Service) view(p *core.Record, withKey bool) PassView {
 		v.TypeLabel, v.Tone = "Guest", "guest"
 	case "exchange":
 		v.TypeLabel, v.Tone = "Exchange", "exchange"
-	case "print": // a paper pass; its label ("Support staff") is kept in college
+	case "print": // a paper pass; its label ("Offline pass") is kept in college
 		v.TypeLabel, v.Tone = "Printed pass", "faculty"
 		if v.College != nil {
 			v.TypeLabel = *v.College

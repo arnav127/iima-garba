@@ -720,3 +720,11 @@ func TestAlumniBringGuestsFromTheirPassLink(t *testing.T) {
 		t.Fatalf("member limit: %d", m.Limit)
 	}
 }
+
+func TestPrintedPassDefaultLabel(t *testing.T) {
+	s, _ := setup(t)
+	b, err := s.GeneratePrintPasses(2, "  ")
+	if err != nil || b.Label != "Offline pass" || b.Passes[1].Name != "Offline pass 002" {
+		t.Fatalf("default label: %v %+v", err, b)
+	}
+}

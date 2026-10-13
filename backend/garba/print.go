@@ -73,11 +73,11 @@ func (s *Service) PrintBatch(batch string) (*PrintBatch, error) {
 	return s.printBatch(strings.TrimSpace(batch))
 }
 
-// GeneratePrintPasses creates count new printed passes labelled e.g. "Support staff 041".
+// GeneratePrintPasses creates count new printed passes labelled e.g. "Offline pass 041".
 func (s *Service) GeneratePrintPasses(count int, labelRaw string) (*PrintBatch, error) {
 	label := cleanName(labelRaw)
 	if label == "" {
-		label = "Support staff"
+		label = "Offline pass"
 	}
 	if len(label) > 40 {
 		return nil, apiErr(400, "Keep the label under 40 characters")
@@ -85,7 +85,7 @@ func (s *Service) GeneratePrintPasses(count int, labelRaw string) (*PrintBatch, 
 	if count < 1 || count > MaxPrintBatch {
 		return nil, apiErr(400, fmt.Sprintf("Generate between 1 and %d passes at a time", MaxPrintBatch))
 	}
-	// Named by its pass numbers, which never repeat: "Support staff 041–080 · 13 Oct 6:42 PM".
+	// Named by its pass numbers, which never repeat: "Offline pass 041–080 · 13 Oct 6:42 PM".
 	var batch string
 	err := s.app.RunInTransaction(func(tx core.App) error {
 		n, err := tx.CountRecords("passes", dbx.HashExp{"kind": "print"})
