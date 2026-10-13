@@ -142,7 +142,20 @@ The server isn't the bottleneck. In a load test through Apache with 3,000 passes
    - Authorised redirect URI: `https://students.iima.ac.in/garba2026/auth/callback`
 3. Put the client ID and secret in `.env` and run `./start.sh` again.
 
-If @iima.ac.in mail is on Microsoft 365 instead of Google Workspace, also fill in `MICROSOFT_CLIENT_ID` and `MICROSOFT_CLIENT_SECRET`. A "Continue with Microsoft" button then appears.
+### Microsoft sign-in (exchange colleges on Microsoft 365, e.g. MICA)
+
+Some colleges' email is on Microsoft, so their students have no Google account for it. To let them sign in:
+
+1. [entra.microsoft.com](https://entra.microsoft.com) → App registrations → **New registration**.
+   - Supported account types: **Any Entra ID tenant (multitenant)**, without personal accounts.
+   - Redirect URI: platform **Web**, `https://students.iima.ac.in/garba2026/auth/callback`
+2. Copy the **Application (client) ID**. Under Certificates & secrets, create a client secret and copy its **Value**.
+3. Put both in `.env` as `MICROSOFT_CLIENT_ID` and `MICROSOFT_CLIENT_SECRET`, then run `./start.sh`. A "Continue with Microsoft" button appears.
+
+- Signing in still needs a pass on the exchange list for that college email. Microsoft sign-in adds no one.
+- The app trusts the account's sign-in name, which Microsoft ties to a domain the college has proven it owns, and ignores the free-text mail field. IIMA addresses are refused here and use Google.
+- A college's IT may block outside apps ("Need admin approval"). Those students use their pass link.
+- Set `MICROSOFT_TENANT=micamail.in` to accept only one college.
 
 ## Or: web app on Vercel, backend on campus
 
@@ -162,7 +175,7 @@ Environment variables in `.env` (see `.env.example`), applied on every start:
 | `MEMBER_DOMAINS` | Email domains that get a pass on sign-in (default `iima.ac.in`) |
 | `ADMIN_EMAILS` | Comma-separated emails that are always Cultcomm admins |
 | `GOOGLE_CLIENT_ID`, `GOOGLE_CLIENT_SECRET` | Google sign-in. Redirect URI: `<APP_URL>/auth/callback` |
-| `MICROSOFT_CLIENT_ID`, `MICROSOFT_CLIENT_SECRET` | Optional Microsoft sign-in |
+| `MICROSOFT_CLIENT_ID`, `MICROSOFT_CLIENT_SECRET`, `MICROSOFT_TENANT` | Optional Microsoft sign-in for exchange colleges |
 | `BASE_PATH`, `PORT`, `DATA_DIR`, `TRUSTED_PROXY_HEADERS` | Where it runs; see `.env.example` |
 | `VITE_PB_URL` (build time) | Only when the web app is hosted separately from PocketBase |
 

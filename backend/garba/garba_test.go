@@ -472,3 +472,67 @@ func TestAdminListsArePaged(t *testing.T) {
 		t.Fatalf("search: %d", len(found.Items))
 	}
 }
+
+func TestMicrosoftSignInTrustsOnlyTheProvenDomain(t *testing.T) {
+	s, _ := setup(t)
+	good := []struct{ upn, mail, want string }{
+		{"Tulika.PGP25@MicaMail.in", "tulika.pgp25@micamail.in", "tulika.pgp25@micamail.in"},
+		{"manvi.pgp25@micamail.in", "", "manvi.pgp25@micamail.in"},               // no mailbox
+		{"21bcs042@nirmauni.ac.in", "riya.shah@nirmauni.ac.in", "riya.shah@nirmauni.ac.in"}, // roll-number sign-in, same proven domain
+		{"x.pgp25@micamail.in", "someone.else@gmail.com", "x.pgp25@micamail.in"}, // mail on another domain is ignored
+	}
+	for _, c := range good {
+		if got, err := s.microsoftEmail(c.upn, c.mail); err != nil || got != c.want {
+			t.Fatalf("%q/%q: %q %v", c.upn, c.mail, got, err)
+		}
+	}
+	// Someone with their own Microsoft organisation can write anything in the mail field. It never counts.
+	for _, c := range []struct{ upn, mail string }{
+		{"attacker@evil.onmicrosoft.com", "cultcomm@iima.ac.in"},
+		{"attacker@evil.com", "tulika.pgp25@micamail.in"},
+		{"attacker@micamail.in.evil.com", "tulika.pgp25@micamail.in"},
+		{"attacker@notmicamail.in", "tulika.pgp25@micamail.in"},
+	} {
+		got, err := s.microsoftEmail(c.upn, c.mail)
+		if err != nil || got != strings.ToLower(c.upn) {
+			t.Fatalf("%q with mail %q signed in as %q (%v)", c.upn, c.mail, got, err)
+		}
+	}
+	// Guest accounts and accounts with no usable sign-in name prove nothing.
+	for _, upn := range []string{"friend_gmail.com#EXT#@mica.onmicrosoft.com", "", "not-an-email", "@micamail.in"} {
+		if got, err := s.microsoftEmail(upn, "tulika.pgp25@micamail.in"); err == nil {
+			t.Fatalf("%q accepted as %q", upn, got)
+		}
+	}
+	// IIMA's own addresses never come in through Microsoft, so admin and member accounts can't be reached this way.
+	for _, c := range [][2]string{{"p25aarav@iima.ac.in", ""}, {"cultcomm@iima.ac.in", "cultcomm@iima.ac.in"}} {
+		if _, err := s.microsoftEmail(c[0], c[1]); err != ErrMicrosoftMember {
+			t.Fatalf("%q: %v", c[0], err)
+		}
+	}
+
+	// End to end: only a college address that is on the exchange list gets a pass.
+	if _, err := s.ImportExchange("x.csv", []byte("Name,Email,College\nTulika Gupta,tulikagupta.pgp25@micamail.in,MICA\n")); err != nil {
+		t.Fatal(err)
+	}
+	email, _ := s.microsoftEmail("TulikaGupta.pgp25@micamail.in", "")
+	u := signIn(t, s, email, "Tulika Gupta")
+	if m := me(t, s, u); m.Pass == nil || m.Pass.Kind != "exchange" || m.User.Role != "member" {
+		t.Fatalf("exchange guest: %+v", m.Pass)
+	}
+	email, _ = s.microsoftEmail("attacker@evil.com", "tulikagupta.pgp25@micamail.in")
+	if _, err := s.SignInUser(email, "Attacker"); err != ErrNotOnList {
+		t.Fatalf("attacker: %v", err)
+	}
+
+	// Which organisations may sign in: any by default, one if named, never personal accounts.
+	for in, want := range map[string]string{
+		"": "organizations", "common": "organizations", "consumers": "organizations", "a/b": "organizations",
+		" MicaMail.IN ": "micamail.in", "organizations": "organizations",
+	} {
+		t.Setenv("MICROSOFT_TENANT", in)
+		if got := microsoftTenant(); got != want {
+			t.Fatalf("tenant %q: %q", in, got)
+		}
+	}
+}

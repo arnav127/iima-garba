@@ -2,6 +2,7 @@ package garba
 
 import (
 	"os"
+	"regexp"
 	"strings"
 
 	"github.com/pocketbase/pocketbase/core"
@@ -15,8 +16,9 @@ import (
 //	MEMBER_DOMAINS           email domains that get a pass on sign-in (default iima.ac.in)
 //	GOOGLE_CLIENT_ID         "Sign in with Google"
 //	GOOGLE_CLIENT_SECRET
-//	MICROSOFT_CLIENT_ID      optional "Sign in with Microsoft"
+//	MICROSOFT_CLIENT_ID      optional "Sign in with Microsoft", for exchange colleges whose mail is on Microsoft 365
 //	MICROSOFT_CLIENT_SECRET
+//	MICROSOFT_TENANT         optional: one organisation's domain to allow only that one (default: any organisation)
 //	ADMIN_EMAILS             comma separated; these people are always Cultcomm admins
 //	TRUSTED_PROXY_HEADERS    e.g. X-Forwarded-For behind Apache/nginx, so logs and rate limits see real client IPs
 func applyEnvConfig(app core.App) error {
@@ -54,6 +56,12 @@ func applyEnvConfig(app core.App) error {
 			continue
 		}
 		cfg := core.OAuth2ProviderConfig{Name: p.name, ClientId: p.id, ClientSecret: p.secret}
+		if p.name == "microsoft" {
+			// Work and school accounts of any organisation (each exchange college has its own), but not
+			// personal Microsoft accounts: those can't be tied to a college. See microsoftEmail.
+			base := "https://login.microsoftonline.com/" + microsoftTenant() + "/oauth2/v2.0/"
+			cfg.AuthURL, cfg.TokenURL = base+"authorize", base+"token"
+		}
 		found := false
 		for i, existing := range users.OAuth2.Providers {
 			if existing.Name == p.name {
@@ -72,6 +80,19 @@ func applyEnvConfig(app core.App) error {
 		}
 	}
 	return nil
+}
+
+var tenantRe = regexp.MustCompile(`^[a-z0-9][a-z0-9.-]*$`)
+
+// microsoftTenant is which Microsoft organisations may sign in: "organizations" (any college or
+// company, the default) or one organisation's domain or directory ID (MICROSOFT_TENANT) to allow
+// just that one. "common" and "consumers" would let personal accounts in, so they are not accepted.
+func microsoftTenant() string {
+	t := strings.ToLower(strings.TrimSpace(os.Getenv("MICROSOFT_TENANT")))
+	if !tenantRe.MatchString(t) || t == "common" || t == "consumers" {
+		return "organizations"
+	}
+	return t
 }
 
 // ensureAdmins makes sure the ADMIN_EMAILS people exist and are admins.
