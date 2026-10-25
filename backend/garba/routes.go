@@ -23,38 +23,9 @@ func Register(app core.App) *Service {
 		}
 	}
 
-	// Sign-in is OAuth2 only (Google, optionally Microsoft). We decide who gets in and create
-	// their account ourselves, then PocketBase links the provider to it.
-	app.OnRecordAuthWithOAuth2Request("users").BindFunc(func(e *core.RecordAuthWithOAuth2RequestEvent) error {
-		if e.OAuth2User == nil {
-			return ErrNotOnList
-		}
-		if e.ProviderName == "microsoft" {
-			upn, _ := e.OAuth2User.RawUser["userPrincipalName"].(string)
-			email, err := s.microsoftEmail(upn, e.OAuth2User.Email)
-			if err != nil {
-				return err
-			}
-			e.OAuth2User.Email = email
-		}
-		if e.OAuth2User.Email == "" {
-			return ErrNotOnList
-		}
-		u, err := s.SignInUser(e.OAuth2User.Email, e.OAuth2User.Name)
-		if err != nil {
-			return err
-		}
-		e.Record, e.IsNewRecord = u, false
-		return e.Next()
-	})
+	// Sign-in is the platform's (see main.go): Access decides who gets in.
 
 	app.OnServe().BindFunc(func(se *core.ServeEvent) error {
-		if err := applyEnvConfig(app); err != nil {
-			return err
-		}
-		if err := s.ensureAdmins(); err != nil {
-			return err
-		}
 		r := se.Router
 		auth := apis.RequireAuth("users")
 		appURL := func(e *core.RequestEvent) string {

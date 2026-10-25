@@ -16,6 +16,7 @@
   "dependencies": {
     "@fontsource/anek-gujarati": "^5.3.0",
     "@fontsource/mukta-vaani": "^5.3.0",
+    "@iima/kit": "file:../iima-platform/kit-js",
     "pocketbase": "^0.28.1",
     "preact": "^10.29.8",
     "qr-scanner": "^1.4.2",

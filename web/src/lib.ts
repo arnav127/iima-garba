@@ -1,49 +1,42 @@
 import { useEffect, useState } from 'preact/hooks';
 import PocketBase, { ClientResponseError } from 'pocketbase';
+import * as kit from '@iima/kit';
 import type { MeResponse } from '../../shared/types.ts';
 import { syncClock } from './qr.ts';
 
 // ---------- API ----------
 
-/** Same origin on campus (PocketBase serves the app); set VITE_PB_URL when the app is hosted elsewhere, e.g. Vercel. */
 /**
- * The app can live under a sub-path, e.g. https://students.iima.ac.in/garba2026/ (set VITE_BASE at build time).
+ * The app lives under a sub-path, e.g. https://students.iima.ac.in/garba2026/ (set VITE_BASE at build time).
  * BASE is that prefix without the trailing slash ('' at the root). App routes below are written without it.
+ * Sign-in is the platform's: the session cookie reaches the backend as a verified token.
  */
-export const BASE = import.meta.env.BASE_URL.replace(/\/$/, '');
-export const asset = (file: string) => `${BASE}/${file}`;
+kit.setBase(import.meta.env.BASE_URL);
+export const BASE = kit.BASE;
+export const asset = kit.asset;
+export const ApiError = kit.ApiError;
+export type ApiError = kit.ApiError;
 
-/** Same origin and path as the app (PocketBase serves both); set VITE_PB_URL when the API is hosted elsewhere, e.g. Vercel. */
-export const pb = new PocketBase(import.meta.env.VITE_PB_URL || location.origin + BASE);
+/** The PocketBase SDK, for realtime updates and file uploads only; it holds no token (the cookie does the work). */
+export const pb = new PocketBase(location.origin + BASE);
 pb.autoCancellation(false);
 
-export class ApiError extends Error {
-  status: number;
-  constructor(status: number, message: string) {
-    super(message);
-    this.status = status;
-  }
-}
-
-function toApiError(e: unknown): ApiError {
+function toApiError(e: unknown): kit.ApiError {
+  if (e instanceof kit.ApiError) return e;
   if (e instanceof ClientResponseError) {
-    if (e.status === 0) return new ApiError(0, "You're offline. Check your connection and try again.");
-    return new ApiError(e.status, e.response?.message || e.message || 'Something went wrong');
+    if (e.status === 0) return new kit.ApiError(0, "You're offline. Check your connection and try again.");
+    return new kit.ApiError(e.status, e.response?.message || e.message || 'Something went wrong');
   }
-  return new ApiError(500, e instanceof Error ? e.message : 'Something went wrong');
+  return new kit.ApiError(500, e instanceof Error ? e.message : 'Something went wrong');
 }
 
 /** Calls a custom /api/garba route. */
 export async function api<T>(path: string, init?: { method?: string; body?: unknown; timeoutMs?: number }): Promise<T> {
-  try {
-    return await pb.send<T>('/api/garba' + path, {
-      method: init?.method ?? (init?.body !== undefined ? 'POST' : 'GET'),
-      body: init?.body,
-      ...(init?.timeoutMs ? { signal: AbortSignal.timeout(init.timeoutMs) } : {}),
-    });
-  } catch (e) {
-    throw toApiError(e);
-  }
+  return kit.api<T>('/api/garba' + path, {
+    method: init?.method,
+    body: init?.body,
+    signal: init?.timeoutMs ? AbortSignal.timeout(init.timeoutMs) : undefined,
+  });
 }
 
 /** Runs any PocketBase SDK call with our error shape. */
@@ -55,38 +48,18 @@ export async function pbCall<T>(fn: () => Promise<T>): Promise<T> {
   }
 }
 
-// ---------- sign-in (OAuth2 redirect flow, works on mobile browsers; no emails are ever sent) ----------
+// ---------- sign-in (the platform's; works on mobile browsers) ----------
 
-const OAUTH_KEY = 'garba:oauth';
-export const oauthRedirect = () => `${location.origin}${BASE}/auth/callback`;
-export type Provider = 'google' | 'microsoft';
+/** After the platform sign-in, the browser comes back here; see SignedIn. */
+export const SIGNED_IN = '/signed-in';
 
-/** Which sign-in buttons to show (Google always; Microsoft if configured). */
-export async function enabledProviders(): Promise<Provider[]> {
-  try {
-    const m = await pb.collection('users').listAuthMethods();
-    return (m.oauth2?.providers ?? []).map((p) => p.name as Provider).filter((n) => n === 'google' || n === 'microsoft');
-  } catch {
-    return ['google'];
-  }
+/** Sends the browser to the platform sign-in. switchAccount shows Google's account chooser. */
+export function startSignIn(switchAccount = false) {
+  kit.login(SIGNED_IN, switchAccount);
 }
 
-export async function startSignIn(provider: Provider) {
-  const methods = await pbCall(() => pb.collection('users').listAuthMethods());
-  const p = methods.oauth2?.providers?.find((x) => x.name === provider);
-  if (!methods.oauth2?.enabled || !p) throw new ApiError(503, 'Sign-in is not set up yet. Ask Cultcomm to add the Google keys.');
-  storage.set(OAUTH_KEY, { provider, state: p.state, verifier: p.codeVerifier });
-  location.href = p.authURL + encodeURIComponent(oauthRedirect());
-}
-
-export async function finishSignIn(params: URLSearchParams): Promise<MeResponse> {
-  const saved = storage.get<{ provider: Provider; state: string; verifier: string }>(OAUTH_KEY);
-  storage.set(OAUTH_KEY, null);
-  if (params.get('error')) throw new ApiError(400, 'Sign-in was cancelled.');
-  if (!saved || saved.state !== params.get('state')) throw new ApiError(400, 'Sign-in expired. Please try again.');
-  await pbCall(() => pb.collection('users').authWithOAuth2Code(saved.provider, params.get('code') ?? '', saved.verifier, oauthRedirect()));
-  return afterSignIn();
-}
+/** Who is signed in to the platform, even if they are not on the Garba list (for the login page). */
+export const platformUser = () => kit.me('garba2026');
 
 export async function afterSignIn(): Promise<MeResponse> {
   const me = await api<MeResponse>('/me');
@@ -96,9 +69,9 @@ export async function afterSignIn(): Promise<MeResponse> {
 }
 
 export function signOut() {
-  pb.authStore.clear();
   pb.realtime.unsubscribe().catch(() => {});
   setMe(null);
+  kit.logout('/');
 }
 
 // ---------- tiny store ----------
@@ -113,50 +86,41 @@ export function createStore<T>(initial: T) {
     set(next: T) { value = next; listeners.forEach((l) => l()); },
     use(): T {
       const [, force] = useState(0);
-      useEffect(() => { const l = () => force((n) => n + 1); listeners.add(l); return () => { listeners.delete(l); }; }, []);
+      const seen = value;
+      useEffect(() => {
+        const l = () => force((n) => n + 1);
+        listeners.add(l);
+        // The value may have changed between this render and subscribing.
+        if (value !== seen) force((n) => n + 1);
+        return () => { listeners.delete(l); };
+      }, []);
       return value;
     },
   };
 }
 
-const storage = {
-  get<T>(key: string): T | null {
-    try { const v = localStorage.getItem(key); return v ? (JSON.parse(v) as T) : null; } catch { return null; }
-  },
-  set(key: string, v: unknown) {
-    try { if (v === null) localStorage.removeItem(key); else localStorage.setItem(key, JSON.stringify(v)); } catch { /* private mode */ }
-  },
-};
+const storage = kit.storage;
 export { storage };
 
 // The signed-in user's data is cached so the pass and QR show instantly, even offline at the gate.
-export const meStore = createStore<MeResponse | null>(pb.authStore.isValid ? storage.get<MeResponse>('garba:me') : null);
+export const meStore = createStore<MeResponse | null>(storage.get<MeResponse>('garba:me'));
 
 export function setMe(me: MeResponse | null) {
   storage.set('garba:me', me);
   meStore.set(me);
 }
 
+/** Checks who is signed in. Offline, the cached pass stays; signed out or off the list clears it. */
 export async function refreshMe(): Promise<MeResponse | null> {
-  if (!pb.authStore.isValid) {
-    setMe(null);
-    return null;
-  }
   try {
     return await afterSignIn();
   } catch (e) {
-    if (e instanceof ApiError && (e.status === 401 || e.status === 403 || e.status === 404)) signOut();
+    if (e instanceof kit.ApiError && (e.status === 401 || e.status === 403 || e.status === 404)) {
+      pb.realtime.unsubscribe().catch(() => {});
+      setMe(null);
+      return null;
+    }
     return meStore.get();
-  }
-}
-
-/** Keeps the session fresh: PocketBase tokens are renewed on app start. */
-export async function renewSession() {
-  if (!pb.authStore.isValid) return;
-  try {
-    await pb.collection('users').authRefresh();
-  } catch (e) {
-    if (e instanceof ClientResponseError && (e.status === 401 || e.status === 403 || e.status === 404)) signOut();
   }
 }
 
@@ -171,7 +135,7 @@ export function onPassesChange(cb: () => void): () => void {
 // ---------- router ----------
 
 /** Current app route without the BASE prefix, e.g. '/home'. */
-export const appPath = () => location.pathname.slice(BASE.length) || '/';
+export const appPath = kit.appPath;
 export const routeStore = createStore(appPath());
 
 export function navigate(to: string, replace = false) {

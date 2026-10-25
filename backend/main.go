@@ -1,66 +1,39 @@
-// Garba Night passes for IIM Ahmedabad: a PocketBase app with custom routes.
+// Garba Night passes for IIM Ahmedabad: a PocketBase app with custom routes. Sign-in comes from the
+// students.iima.ac.in platform (iimakit/pb); this app decides who is on the list.
 //
 //	go run . serve                    # dev, http://127.0.0.1:8090 (dashboard at /_/)
-//	go build -o garba && ./garba serve --http 0.0.0.0:8090
-//	./garba serve garba.iima.ac.in    # production with automatic HTTPS
+//	go build -o garba && ./garba serve --http 127.0.0.1:8090
 package main
 
 import (
 	"log"
-	"net/http"
-	"os"
-	"path/filepath"
-	"strings"
 
-	"github.com/pocketbase/pocketbase"
-	"github.com/pocketbase/pocketbase/apis"
 	"github.com/pocketbase/pocketbase/core"
-	"github.com/pocketbase/pocketbase/tools/hook"
-	"github.com/pocketbase/pocketbase/tools/osutils"
+
+	iimakit "github.com/arnav127/iima-platform/kit"
+	"github.com/arnav127/iima-platform/kit/pb"
 
 	"github.com/arnav127/iima-garba/backend/garba"
 	_ "github.com/arnav127/iima-garba/backend/migrations"
 )
 
 func main() {
-	app := pocketbase.New()
-
-	var publicDir string
-	app.RootCmd.PersistentFlags().StringVar(&publicDir, "publicDir", defaultPublicDir(), "the directory with the built web app")
-	app.RootCmd.ParseFlags(os.Args[1:])
-
-	s := garba.Register(app)
-	app.RootCmd.AddCommand(garba.Commands(app, s)...)
-
-	// Serve the built web app (npm run build writes it to pb_public) with SPA fallback.
-	app.OnServe().Bind(&hook.Handler[*core.ServeEvent]{
-		Func: func(e *core.ServeEvent) error {
-			if !e.Router.HasRoute(http.MethodGet, "/{path...}") {
-				static := apis.Static(os.DirFS(publicDir), true)
-				e.Router.GET("/{path...}", func(re *core.RequestEvent) error {
-					p := re.Request.URL.Path
-					switch {
-					case strings.HasPrefix(p, "/assets/"):
-						re.Response.Header().Set("Cache-Control", "public, max-age=31536000, immutable")
-					case p == "/sw.js" || !strings.Contains(filepath.Base(p), "."):
-						re.Response.Header().Set("Cache-Control", "no-cache")
-					}
-					return static(re)
-				}).Bind(apis.Gzip())
-			}
-			return e.Next()
+	var s *garba.Service
+	app := pb.New(pb.Config{
+		AppID:   "garba2026",
+		AppName: "Garba Night · IIMA",
+		Access: func(e *core.RequestEvent, c *iimakit.Claims) (*core.Record, error) {
+			return s.Access(garba.Person{
+				Email: c.Email, Name: c.Name, Member: c.Member,
+				Cohort: garba.Cohort(c.Affiliation, c.Programme, c.Year),
+				Role:   garba.RoleFrom(c.Roles),
+			})
 		},
-		Priority: 999,
 	})
+	s = garba.Register(app)
+	app.RootCmd.AddCommand(garba.Commands(app, s)...)
 
 	if err := app.Start(); err != nil {
 		log.Fatal(err)
 	}
-}
-
-func defaultPublicDir() string {
-	if osutils.IsProbablyGoRun() {
-		return "./pb_public"
-	}
-	return filepath.Join(os.Args[0], "../pb_public")
 }

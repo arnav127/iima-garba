@@ -4,6 +4,7 @@ import {
   type AdminPerson, type AdminStats, type Group, type ImportResult, type MeResponse, type Page, type PassView, type PrintBatch, type PrintBatchInfo, type Role, type Settings,
 } from '../../../shared/types.ts';
 import { Btn, ConfirmBtn, Icon, Logo, Mirrors, Rainbow, Sheet, Spinner, Top } from '../components/ui.tsx';
+import { setRoles } from '@iima/kit';
 import { api, initials, istTime, navigate, onPassesChange, pb, pbCall, storage, toast, toastError } from '../lib.ts';
 import { AccountSheet } from './Home.tsx';
 import { PrintSheet } from './PrintSheet.tsx';
@@ -47,9 +48,12 @@ export function Admin({ me }: { me: MeResponse }) {
 const ToneDot = ({ color }: { color: string }) => <span class="tone-dot" style={{ background: color }} />;
 const kindLabel = { own: 'IIMA members', guest: 'Friends & family', exchange: 'Exchange', print: 'Printed passes' };
 
+/** Volunteer and admin are platform roles for garba2026; "member" (pass only) is no role. */
+const setPlatformRole = (email: string, role: Role) => setRoles('garba2026', email.trim().toLowerCase(), role === 'member' ? [] : [role]);
+
 async function download(path: string, name: string) {
   try {
-    const res = await fetch(pb.buildURL(path), { headers: { Authorization: pb.authStore.token } });
+    const res = await fetch(pb.buildURL(path), { credentials: 'same-origin' });
     if (!res.ok) throw new Error('Download failed');
     const url = URL.createObjectURL(await res.blob());
     const a = document.createElement('a');
@@ -295,6 +299,8 @@ function People({ meId }: { meId: string }) {
     if (!sel) return;
     setBusy(true);
     try {
+      // Roles live on the platform; Garba keeps a copy for its lists.
+      if (body.role) await setPlatformRole(sel.email, body.role);
       const p = await api<AdminPerson>(`/admin/people/${sel.id}`, { body });
       setSel(p); setLimit(p.limit);
       toast(msg);
@@ -306,6 +312,7 @@ function People({ meId }: { meId: string }) {
     e.preventDefault();
     setBusy(true);
     try {
+      await setPlatformRole(email, role);
       const p = await api<AdminPerson>('/admin/access', { body: { email, role } });
       toast(`${p.name} is now ${role === 'admin' ? 'an admin' : 'a volunteer'}`);
       setEmail('');

@@ -78,5 +78,24 @@ func Commands(app core.App, s *Service) []*cobra.Command {
 			return nil
 		},
 	}
-	return []*cobra.Command{exchangeCmd, seedCmd}
+	// For the move to the platform: today's volunteers and admins become platform roles.
+	rolesCmd := &cobra.Command{
+		Use:   "platform-roles",
+		Short: "Print the core commands that give today's volunteers and admins their platform roles",
+		RunE: func(cmd *cobra.Command, args []string) error {
+			if err := app.RunAllMigrations(); err != nil {
+				return err
+			}
+			staff, err := app.FindRecordsByFilter("users", "role = 'volunteer' || role = 'admin'", "email", 0, 0)
+			if err != nil {
+				return err
+			}
+			for _, u := range staff {
+				fmt.Printf("core roles set garba2026 %s %s\n", u.Email(), role(u))
+			}
+			return nil
+		},
+	}
+
+	return []*cobra.Command{exchangeCmd, seedCmd, rolesCmd}
 }

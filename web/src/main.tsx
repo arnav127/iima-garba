@@ -2,9 +2,9 @@ import { render, type ComponentType } from 'preact';
 import { useEffect, useState } from 'preact/hooks';
 import type { EventInfo, MeResponse } from '../../shared/types.ts';
 import { Spinner, Toast } from './components/ui.tsx';
-import { api, asset, BASE, meStore, navigate, refreshMe, renewSession, routeStore, storage } from './lib.ts';
+import { api, asset, BASE, meStore, navigate, refreshMe, routeStore, SIGNED_IN, storage } from './lib.ts';
 import { homeFor } from './routes.ts';
-import { AuthCallback } from './screens/AuthCallback.tsx';
+import { SignedIn } from './screens/AuthCallback.tsx';
 import { GuestHome, PassLink } from './screens/GuestHome.tsx';
 import { Home } from './screens/Home.tsx';
 import { Landing } from './screens/Landing.tsx';
@@ -51,14 +51,14 @@ function App() {
   const [checked, setChecked] = useState(false);
 
   useEffect(() => {
-    renewSession().then(refreshMe).finally(() => setChecked(true));
+    refreshMe().finally(() => setChecked(true));
     api<EventInfo>('/event').then((e) => { setEvent(e); storage.set('garba:event', e); }).catch(() => {});
     const onVisible = () => { if (document.visibilityState === 'visible') refreshMe(); };
     document.addEventListener('visibilitychange', onVisible);
     return () => document.removeEventListener('visibilitychange', onVisible);
   }, []);
 
-  if (path === '/auth/callback') return <AuthCallback />;
+  if (path === SIGNED_IN) return <SignedIn />;
   const link = path.match(/^\/p\/([\w-]+)$/);
   if (link) return <PassLink token={link[1]} />;
 

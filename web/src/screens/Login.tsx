@@ -1,6 +1,6 @@
 import { useEffect, useState } from 'preact/hooks';
 import { Back, Icon, Top, Zigzag } from '../components/ui.tsx';
-import { enabledProviders, navigate, startSignIn, storage, type Provider } from '../lib.ts';
+import { navigate, platformUser, startSignIn, storage } from '../lib.ts';
 
 const GoogleG = () => (
   <svg width="20" height="20" viewBox="0 0 48 48" aria-hidden="true" style={{ background: '#fff', borderRadius: 4, padding: 2, boxSizing: 'content-box' }}>
@@ -11,29 +11,17 @@ const GoogleG = () => (
   </svg>
 );
 
-const MicrosoftM = () => (
-  <svg width="20" height="20" viewBox="0 0 22 22" aria-hidden="true" style={{ background: '#fff', borderRadius: 4, padding: 2, boxSizing: 'content-box' }}>
-    <path fill="#f25022" d="M1 1h9.5v9.5H1z" /><path fill="#7fba00" d="M11.5 1H21v9.5h-9.5z" />
-    <path fill="#00a4ef" d="M1 11.5h9.5V21H1z" /><path fill="#ffb900" d="M11.5 11.5H21V21h-9.5z" />
-  </svg>
-);
-
 export function Login() {
-  const params = new URLSearchParams(location.search);
-  const [providers, setProviders] = useState<Provider[]>(['google']);
-  const [busy, setBusy] = useState<Provider | ''>('');
-  const [error, setError] = useState(params.get('error') ?? '');
+  const [busy, setBusy] = useState(false);
+  // Signed in to the platform with an account that isn't on the list: offer to switch.
+  const [stranger, setStranger] = useState('');
   const linkToken = storage.get<string>('garba:link');
 
-  useEffect(() => { enabledProviders().then((p) => p.length && setProviders(p)); }, []);
+  useEffect(() => { platformUser().then((u) => { if (u.signedIn && u.email) setStranger(u.email); }).catch(() => {}); }, []);
 
-  async function go(p: Provider) {
-    setBusy(p); setError('');
-    try {
-      await startSignIn(p);
-    } catch (e) {
-      setError((e as Error).message); setBusy('');
-    }
+  function go() {
+    setBusy(true);
+    startSignIn(!!stranger);
   }
 
   return (
@@ -46,17 +34,15 @@ export function Login() {
       </div>
 
       <div style={{ margin: '30px 22px 0', display: 'flex', flexDirection: 'column', gap: 14 }}>
-        <button type="button" class="btn" onClick={() => go('google')} disabled={!!busy}>
-          <span style={{ display: 'flex', alignItems: 'center', gap: 12 }}><GoogleG />{busy === 'google' ? 'Opening Google…' : 'Continue with Google'}</span>
+        {stranger && (
+          <div class="error" role="alert">
+            {stranger} isn't on the Garba Night list. IIMA students, faculty and staff: use your @iima.ac.in account. Guests: use the Gmail your host added, or ask them for your pass link.
+          </div>
+        )}
+        <button type="button" class="btn" onClick={go} disabled={busy}>
+          <span style={{ display: 'flex', alignItems: 'center', gap: 12 }}><GoogleG />{busy ? 'Opening Google…' : stranger ? 'Use another Google account' : 'Continue with Google'}</span>
           <Icon name="arrow" />
         </button>
-        {providers.includes('microsoft') && (
-          <button type="button" class="btn ghost" onClick={() => go('microsoft')} disabled={!!busy}>
-            <span style={{ display: 'flex', alignItems: 'center', gap: 12 }}><MicrosoftM />{busy === 'microsoft' ? 'Opening Microsoft…' : 'Continue with Microsoft'}</span>
-            <Icon name="arrow" />
-          </button>
-        )}
-        {error && <div class="error" role="alert">{error}</div>}
       </div>
 
       <div style={{ margin: '28px 22px 0', display: 'flex', flexDirection: 'column', gap: 14 }}>

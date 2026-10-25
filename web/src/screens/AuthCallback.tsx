@@ -1,14 +1,12 @@
 import { useEffect } from 'preact/hooks';
 import { Spinner } from '../components/ui.tsx';
-import { finishSignIn, navigate } from '../lib.ts';
+import { navigate, refreshMe } from '../lib.ts';
 import { homeFor } from '../routes.ts';
 
-/** Google (or Microsoft) redirects back here after sign-in. */
-export function AuthCallback() {
+/** The platform sign-in comes back here: go to this person's home, or to the login page if they aren't on the list. */
+export function SignedIn() {
   useEffect(() => {
-    finishSignIn(new URLSearchParams(location.search))
-      .then((me) => navigate(homeFor(me), true))
-      .catch((e) => navigate(`/login?error=${encodeURIComponent((e as Error).message)}`, true));
+    refreshMe().then((me) => navigate(me ? homeFor(me) : '/login', true));
   }, []);
   return <div class="screen"><Spinner /></div>;
 }

@@ -4,10 +4,12 @@ import (
 	"crypto/hmac"
 	"crypto/sha256"
 	"encoding/base64"
+	"errors"
 	"fmt"
 	"net/http"
 	"net/mail"
 	"regexp"
+	"slices"
 	"strconv"
 	"strings"
 	"time"
@@ -332,60 +334,97 @@ func linkPasses(app core.App, u *core.Record) error {
 
 // ---------- sign-in ----------
 
-var ErrMicrosoftMember = apiErr(http.StatusForbidden, "IIMA accounts sign in with Google. Tap Continue with Google and use your @iima.ac.in account.")
-
-// microsoftEmail decides which address a Microsoft sign-in has proven, given the account's
-// sign-in name (userPrincipalName) and its mail field.
-//
-// Any organisation can sign in, and an organisation's admin can put any text in an account's mail
-// field, so mail alone proves nothing (trusting it would let anyone sign in as an admin or as
-// someone on the exchange list). The sign-in name is different: Microsoft only allows names on
-// domains the organisation has proven it owns. So the sign-in name is the proof, and mail is used
-// only when it is on that same proven domain (some colleges sign in with a roll number but list a
-// name-style address). Guest accounts ("…#EXT#@…") and IIMA's own addresses are refused.
-func (s *Service) microsoftEmail(upnRaw, mailRaw string) (string, error) {
-	upn, mail := strings.ToLower(strings.TrimSpace(upnRaw)), strings.ToLower(strings.TrimSpace(mailRaw))
-	at := strings.LastIndex(upn, "@")
-	if at < 1 || !isEmail(upn) || strings.Contains(upn, "#") {
-		return "", ErrNotOnList
-	}
-	email := upn
-	if isEmail(mail) && strings.HasSuffix(mail, upn[at:]) {
-		email = mail
-	}
-	if s.isMemberEmail(email) || s.isMemberEmail(upn) {
-		return "", ErrMicrosoftMember
-	}
-	return email, nil
-}
-
 var ErrNotOnList = apiErr(http.StatusForbidden, "This account isn't on the Garba Night list. IIMA students, faculty and staff: sign in with your @iima.ac.in account. Guests: use the Gmail your host added, or ask them for your pass link.")
 
-// SignInUser finds or creates the account for a verified OAuth2 email.
-// IIMA addresses always get in (with their own pass); anyone else needs a pass added for their email.
+// Person is what the platform says about someone signing in.
+type Person struct {
+	Email, Name string
+	Member      bool   // a verified @iima.ac.in Google account
+	Cohort      string // pgp1, student or faculty for members (see Cohort)
+	Role        string // member, volunteer or admin, from the platform's roles for garba2026; "" leaves it as is
+}
+
+// Cohort maps the platform's attributes onto Garba's groups: first-year PGP and PGP-FABM are pgp1,
+// other students (and alumni, who keep their address) are student, everyone else is faculty & staff.
+// Admins can still move someone in the People tab, which locks their group.
+func Cohort(affiliation, programme string, year int) string {
+	switch affiliation {
+	case "student", "alum":
+		if year == 1 && (programme == "PGP" || programme == "PGP-FABM") {
+			return "pgp1"
+		}
+		return "student"
+	}
+	return "faculty"
+}
+
+// RoleFrom picks Garba's role from the platform's roles for this app.
+func RoleFrom(roles []string) string {
+	switch {
+	case slices.Contains(roles, "admin"):
+		return "admin"
+	case slices.Contains(roles, "volunteer"):
+		return "volunteer"
+	}
+	return "member"
+}
+
+// Access is called by the platform kit on every request from a signed-in user. IIMA members always
+// get in (with their own pass); volunteers and admins get in with a pass of their own even without
+// an IIMA address; anyone else needs a pass added for their email. Returns nil, nil for someone
+// who isn't on the list, so the request runs signed out.
+func (s *Service) Access(p Person) (*core.Record, error) {
+	u, err := s.signIn(p)
+	if errors.Is(err, ErrNotOnList) {
+		return nil, nil
+	}
+	return u, err
+}
+
+// SignInUser signs in from an email alone (tests and tools): membership and cohort come from the
+// address, and the role is left as it is.
 func (s *Service) SignInUser(emailRaw, name string) (*core.Record, error) {
 	email := strings.ToLower(strings.TrimSpace(emailRaw))
+	return s.signIn(Person{Email: email, Name: name, Member: s.isMemberEmail(email), Cohort: s.cohortFor(email)})
+}
+
+func (s *Service) signIn(p Person) (*core.Record, error) {
+	email := strings.ToLower(strings.TrimSpace(p.Email))
 	if email == "" {
 		return nil, ErrNotOnList
 	}
-	name = cleanName(name)
+	name := cleanName(p.Name)
 	if name == "" {
 		name = strings.SplitN(email, "@", 2)[0]
 	}
+	staff := p.Role == "volunteer" || p.Role == "admin"
 	var user *core.Record
 	err := s.app.RunInTransaction(func(tx core.App) error {
 		u, err := tx.FindAuthRecordByEmail("users", email)
-		member := s.isMemberEmail(email)
 		switch {
 		case err == nil:
-			if member && !u.GetBool("groupLocked") && group(u) != s.cohortFor(email) {
-				u.Set("group", s.cohortFor(email))
+			changed := false
+			if p.Member && p.Cohort != "" && !u.GetBool("groupLocked") && group(u) != p.Cohort {
+				u.Set("group", p.Cohort)
+				changed = true
+			}
+			// The platform is the source of truth for roles; this field mirrors it.
+			if p.Role != "" && role(u) != p.Role {
+				u.Set("role", p.Role)
+				changed = true
+			}
+			if changed {
 				if err := tx.Save(u); err != nil {
 					return err
 				}
 			}
-		case member:
-			if u, err = newUser(tx, email, name, s.cohortFor(email), "member"); err != nil {
+		case p.Member:
+			if u, err = newUser(tx, email, name, p.Cohort, orMember(p.Role)); err != nil {
+				return err
+			}
+		case staff:
+			// A volunteer or admin without an IIMA address.
+			if u, err = newUser(tx, email, name, "guest", p.Role); err != nil {
 				return err
 			}
 		default:
@@ -711,4 +750,11 @@ func RequireRole(roles ...string) func(e *core.RequestEvent) error {
 		}
 		return apiErr(http.StatusForbidden, "Not allowed")
 	}
+}
+
+func orMember(role string) string {
+	if role == "" {
+		return "member"
+	}
+	return role
 }
